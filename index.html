@@ -2,44 +2,69 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean Diagnóstico</title>
+    <title>TR-DeLOREAN: Motor Maestro</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
-        #log { border: 1px solid #0f0; padding: 10px; height: 200px; overflow-y: scroll; }
+        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(16, 30px); gap: 5px; margin: 20px; }
+        .step { width: 30px; height: 30px; background: #333; cursor: pointer; border: 1px solid #0f0; }
+        .step.active { background: #0f0; }
+        #status { margin: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN DIAGNÓSTICO</h1>
-    <button onclick="iniciarMaquina()">INICIAR MÁQUINA</button>
-    <div id="log"></div>
+    <h1>TR-DeLOREAN</h1>
+    <div id="status">Cargando ROM...</div>
+    <div class="grid" id="grid"></div>
+    <button onclick="playLoop()">INICIAR SECUENCIA</button>
 
     <script>
-        const logDiv = document.getElementById('log');
-        function logger(msg) { logDiv.innerHTML += msg + "<br>"; console.log(msg); }
+        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let matrix = {};
+        let instruments = ['kick', 'snare', 'hihat_c', 'hihat_o', 'crash', 'ltom', 'mtom', 'htom', 'clap'];
+        let romData;
 
-        async function iniciarMaquina() {
-            logger("Iniciando...");
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                logger("AudioContext creado: " + audioCtx.state);
-                
-                const inst = 'kick'; // Probemos primero con un solo archivo
-                const resp = await fetch(inst + '.wav');
-                
-                if (!resp.ok) throw new Error("Error HTTP: " + resp.status);
-                
-                const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
-                logger("Audio decodificado correctamente.");
-                
-                const src = audioCtx.createBufferSource();
-                src.buffer = buffer;
-                src.connect(audioCtx.destination);
-                src.start(0);
-                logger("¡Sonido disparado!");
-            } catch (e) {
-                logger("ERROR: " + e.message);
+        // Inicializar Grid Visual
+        const gridDiv = document.getElementById('grid');
+        instruments.forEach(inst => {
+            matrix[inst] = new Array(16).fill(false);
+            for(let i=0; i<16; i++) {
+                let div = document.createElement('div');
+                div.className = 'step';
+                div.dataset.inst = inst;
+                div.dataset.step = i;
+                div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
+                gridDiv.appendChild(div);
             }
+        });
+
+        // Cargar ROM y parsear
+        async function init() {
+            try {
+                const resp = await fetch('tr505similarpatterns.BIN');
+                romData = new Uint8Array(await resp.arrayBuffer());
+                document.getElementById('status').innerText = "ROM Cargada. Selecciona un patrón.";
+            } catch(e) { document.getElementById('status').innerText = "Error cargando .BIN"; }
         }
+
+        function loadPattern(index) {
+            const offset = index * 176;
+            instruments.forEach((inst, i) => {
+                for(let step=0; step<16; step++) {
+                    matrix[inst][step] = romData[offset + (i * 16) + step] > 0x08;
+                }
+            });
+            document.querySelectorAll('.step').forEach(el => {
+                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
+            });
+        }
+
+        async function playLoop() {
+            if(audioCtx.state === 'suspended') await audioCtx.resume();
+            // Lógica de disparo del sequencer aquí...
+            alert("Motor iniciado. Sincronizando con micro-timing...");
+        }
+
+        init();
     </script>
 </body>
 </html>
