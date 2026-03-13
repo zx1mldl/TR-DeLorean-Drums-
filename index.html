@@ -2,87 +2,44 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean: Master 505 Engine</title>
+    <title>TR-DeLorean Diagnóstico</title>
     <style>
-        body { background: #050505; color: #00ffcc; font-family: 'Courier New', monospace; padding: 20px; }
-        .grid-container { display: flex; flex-direction: column; gap: 5px; }
-        .row { display: flex; align-items: center; }
-        .label { width: 100px; font-size: 12px; }
-        .step { width: 30px; height: 30px; background: #111; border: 1px solid #333; cursor: pointer; }
-        .step.active { background: #00ffcc; box-shadow: 0 0 5px #00ffcc; }
-        .step.playing { border: 2px solid #fff; }
-        #controls { margin-top: 20px; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        #log { border: 1px solid #0f0; padding: 10px; height: 200px; overflow-y: scroll; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN MASTER ENGINE</h1>
-    <div id="sequencer" class="grid-container"></div>
-    <div id="controls">
-        <button onclick="togglePlay()">START / STOP</button>
-        <span>BPM: <input type="number" id="bpm" value="120"></span>
-    </div>
+    <h1>TR-DeLOREAN DIAGNÓSTICO</h1>
+    <button onclick="iniciarMaquina()">INICIAR MÁQUINA</button>
+    <div id="log"></div>
 
     <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // Mapeo basado en tus documentos técnicos
-        const instruments = ['kick', 'snare', 'closedhat', 'openhat', 'crash', 'l_tom', 'm_tom', 'h_tom', 'clap'];
-        const matrix = {};
-        const buffers = {};
-        let step = 0;
-        let isPlaying = false;
+        const logDiv = document.getElementById('log');
+        function logger(msg) { logDiv.innerHTML += msg + "<br>"; console.log(msg); }
 
-        async function init() {
-            for (const inst of instruments) {
-                // Fetching directo de tus archivos en el repo
-                const response = await fetch(`${inst}.wav`);
-                buffers[inst] = await audioCtx.decodeAudioData(await response.arrayBuffer());
-                matrix[inst] = new Array(16).fill(false);
+        async function iniciarMaquina() {
+            logger("Iniciando...");
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                logger("AudioContext creado: " + audioCtx.state);
+                
+                const inst = 'kick'; // Probemos primero con un solo archivo
+                const resp = await fetch(inst + '.wav');
+                
+                if (!resp.ok) throw new Error("Error HTTP: " + resp.status);
+                
+                const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
+                logger("Audio decodificado correctamente.");
+                
+                const src = audioCtx.createBufferSource();
+                src.buffer = buffer;
+                src.connect(audioCtx.destination);
+                src.start(0);
+                logger("¡Sonido disparado!");
+            } catch (e) {
+                logger("ERROR: " + e.message);
             }
-            render();
         }
-
-        function render() {
-            const container = document.getElementById('sequencer');
-            instruments.forEach(inst => {
-                const row = document.createElement('div'); row.className = 'row';
-                row.innerHTML = `<div class="label">${inst.toUpperCase()}</div>`;
-                for(let i=0; i<16; i++) {
-                    const s = document.createElement('div'); s.className = 'step';
-                    s.onclick = () => { matrix[inst][i] = !matrix[inst][i]; s.classList.toggle('active'); };
-                    row.appendChild(s);
-                }
-                container.appendChild(row);
-            });
-        }
-
-        function scheduler() {
-            if (!isPlaying) return;
-            const bpm = document.getElementById('bpm').value;
-            const stepDuration = 60 / bpm / 4; // 16 steps por compás
-            
-            instruments.forEach((inst, idx) => {
-                if (matrix[inst][step]) {
-                    const src = audioCtx.createBufferSource();
-                    src.buffer = buffers[inst];
-                    src.connect(audioCtx.destination);
-                    src.start(audioCtx.currentTime);
-                }
-                // Animación visual
-                const row = document.querySelectorAll('.row')[idx];
-                row.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('playing', i === step));
-            });
-
-            step = (step + 1) % 16;
-            setTimeout(scheduler, stepDuration * 1000);
-        }
-
-        function togglePlay() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            isPlaying = !isPlaying;
-            if (isPlaying) scheduler();
-        }
-
-        init();
     </script>
 </body>
 </html>
