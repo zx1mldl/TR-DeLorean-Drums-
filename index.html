@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+        <title>TR-DeLorean</title>
+            <style>
+                    body { background: #000; color: #0ff; font-family: sans-serif; text-align: center; }
+                            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
+                                    button { padding: 20px; cursor: pointer; background: #222; color: #0ff; border: 1px solid #0ff; border-radius: 5px; text-transform: uppercase; }
+                                            button:active { background: #0ff; color: #000; }
+                                                </style>
+                                                </head>
+                                                <body>
+                                                    <div class="grid" id="drumKit"></div>
+                                                        
+                                                            <script>
+                                                                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                                                                            const sounds = ["kick.wav", "snare.wav", "rim.wav", "handclap.wav", "lowtom.wav", "midtom.wav", "hitom.wav", "closedhat.wav", "openhat.wav", "crash.wav", "ride.wav", "timbale.wav", "hicowbell.wav", "lowcowbell.wav", "hiconga.wav", "lowconga.wav"];
+
+                                                                                    async function play(file) {
+                                                                                                if (ctx.state === 'suspended') ctx.resume();
+                                                                                                            try {
+                                                                                                                            const res = await fetch(file);
+                                                                                                                                            const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+                                                                                                                                                            const src = ctx.createBufferSource();
+                                                                                                                                                                            src.buffer = buffer;
+                                                                                                                                                                                            src.connect(ctx.destination);
+                                                                                                                                                                                                            src.start();
+                                                                                                                                                                                                                        } catch (e) { console.log("Error:", e); }
+                                                                                                                                                                                                                                }
+
+                                                                                                                                                                                                                                        const container = document.getElementById('drumKit');
+                                                                                                                                                                                                                                                sounds.forEach(name => {
+                                                                                                                                                                                                                                                            const btn = document.createElement('button');
+                                                                                                                                                                                                                                                                        btn.innerText = name.replace('.wav', '');
+                                                                                                                                                                                                                                                                                    btn.onclick = () => play(name);
+                                                                                                                                                                                                                                                                                                container.appendChild(btn);
+                                                                                                                                                                                                                                                                                                        });
+                                                                                                                                                                                                                                                                                                            </script>
+                                                                                                                                                                                                                                                                                                            </body>
+                                                                                                                                                                                                                                                                                                            </html>
