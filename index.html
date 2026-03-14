@@ -2,30 +2,31 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN: Motor Final v3.2</title>
+    <title>TR-DeLOREAN: V4.0 Final Engine</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
-        .grid { display: grid; grid-template-columns: repeat(16, 25px); gap: 3px; margin: 20px; }
-        .step { width: 25px; height: 25px; background: #222; cursor: pointer; border: 1px solid #0f0; }
+        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 10px; }
+        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; }
         .step.active { background: #0f0; }
-        #controls { margin: 20px; display: flex; gap: 10px; align-items: center; }
-        select, button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; cursor: pointer; }
+        #controls { margin: 10px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        select, button, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v3.2</h1>
+    <h1>TR-DeLOREAN v4.0</h1>
     <div id="status">Cargando...</div>
     <div id="controls">
         <select id="patternSelector" onchange="loadPattern(this.value)"></select>
-        <button id="playBtn" onclick="togglePlay()">PLAY / STOP</button>
+        <button id="playBtn" onclick="togglePlay()">PLAY</button>
+        <label>BPM: <input type="number" id="bpmInput" value="120" min="60" max="200" onchange="bpm = this.value"></label>
+        <button id="lockBtn" onclick="toggleLock()">🔓</button>
     </div>
     <div class="grid" id="grid"></div>
 
     <script>
-        let matrix = {}, romData, isPlaying = false, stepIndex = 0;
+        let matrix = {}, romData, isPlaying = false, stepIndex = 0, bpm = 120, isLocked = false, timerId;
         let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let audioBuffers = {};
-        // Lista exacta de tus 16 archivos (primera letra en mayúscula)
         let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
 
         const gridDiv = document.getElementById('grid');
@@ -40,47 +41,13 @@
             }
         });
 
+        function toggleLock() {
+            isLocked = !isLocked;
+            document.getElementById('lockBtn').innerText = isLocked ? "🔒" : "🔓";
+            document.getElementById('bpmInput').disabled = isLocked;
+        }
+
         async function init() {
             try {
-                // ROM (asegúrate de que el nombre del archivo aquí coincida 100% con el de GitHub)
                 const romResp = await fetch('https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN');
-                romData = new Uint8Array(await romResp.arrayBuffer());
-                
-                // Carga de los 16 sonidos
-                for (let inst of instruments) {
-                    const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
-                    const resp = await fetch(url);
-                    const arrayBuffer = await resp.arrayBuffer();
-                    audioBuffers[inst] = await audioCtx.decodeAudioData(arrayBuffer);
-                }
-                document.getElementById('status').innerText = "Sistema listo. ¡Dale al PLAY!";
-                loadPattern(0);
-            } catch(e) { document.getElementById('status').innerText = "Error: Verifica los nombres de archivos."; }
-        }
-
-        async function togglePlay() {
-            if (audioCtx.state === 'suspended') await audioCtx.resume();
-            isPlaying = !isPlaying;
-            document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-            if (isPlaying) runSequence();
-        }
-
-        function runSequence() {
-            if (!isPlaying) return;
-            instruments.forEach(inst => {
-                if (matrix[inst][stepIndex]) {
-                    let source = audioCtx.createBufferSource();
-                    source.buffer = audioBuffers[inst];
-                    source.connect(audioCtx.destination);
-                    source.start(0);
-                }
-            });
-            stepIndex = (stepIndex + 1) % 16;
-            setTimeout(runSequence, 200);
-        }
-
-        function loadPattern(index) {
-            const offset = index * 176;
-            instruments.forEach((inst, i) => {
-                for(let step = 0; step < 16; step++) {
-                    matrix[inst][step] = (romData
+                romData = new Uint8Array(await
