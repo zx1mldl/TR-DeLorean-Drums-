@@ -2,74 +2,77 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN: Motor Maestro</title>
+    <title>TR-DeLOREAN: Motor Maestro v2.1</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
-        .grid { display: grid; grid-template-columns: repeat(16, 30px); gap: 5px; margin: 20px; }
-        .step { width: 30px; height: 30px; background: #333; cursor: pointer; border: 1px solid #0f0; }
+        .grid { display: grid; grid-template-columns: repeat(16, 25px); gap: 3px; margin: 20px; }
+        .step { width: 25px; height: 25px; background: #222; cursor: pointer; border: 1px solid #0f0; }
         .step.active { background: #0f0; }
-        #status { margin: 10px; font-weight: bold; color: #0f0; }
+        #controls { margin: 20px; display: flex; gap: 10px; align-items: center; }
+        select, button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN</h1>
-    <div id="status">Cargando ROM desde GitHub...</div>
+    <h1>TR-DeLOREAN v2.1</h1>
+    <div id="status">Cargando ROM...</div>
+    
+    <div id="controls">
+        <select id="patternSelector" onchange="loadPattern(this.value)">
+            </select>
+        <button id="playBtn" onclick="togglePlay()">PLAY / STOP</button>
+    </div>
+
     <div class="grid" id="grid"></div>
-    <button onclick="loadPattern(0)">CARGAR PATRÓN 0 (A-1)</button>
 
     <script>
-        let matrix = {};
-        let instruments = ['kick', 'snare', 'hihat_c', 'hihat_o', 'crash', 'ltom', 'mtom', 'htom', 'clap', 'inst10', 'inst11'];
-        let romData;
+        let matrix = {}, romData, isPlaying = false;
+        let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Inst10', 'Inst11'];
 
-        // Inicializar Grid Visual
+        // Crear grid
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
             for(let i=0; i<16; i++) {
                 let div = document.createElement('div');
                 div.className = 'step';
-                div.dataset.inst = inst;
-                div.dataset.step = i;
+                div.dataset.inst = inst; div.dataset.step = i;
                 div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
                 gridDiv.appendChild(div);
             }
         });
 
-        // Cargar ROM desde la URL RAW
         async function init() {
+            const url = 'https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN';
             try {
-                const url = 'https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN';
                 const resp = await fetch(url);
-                if (!resp.ok) throw new Error("No se pudo conectar con el archivo");
-                
-                const arrayBuffer = await resp.arrayBuffer();
-                romData = new Uint8Array(arrayBuffer);
-                
-                document.getElementById('status').innerText = "ROM Cargada. ¡Sistema listo!";
-            } catch(e) {
-                document.getElementById('status').innerText = "Error: " + e.message;
-            }
+                romData = new Uint8Array(await resp.arrayBuffer());
+                const selector = document.getElementById('patternSelector');
+                for(let i=0; i<46; i++) {
+                    let opt = document.createElement('option');
+                    opt.value = i; opt.innerHTML = "Patrón " + (i + 1);
+                    selector.appendChild(opt);
+                }
+                document.getElementById('status').innerText = "ROM lista. ¡Arranca el motor!";
+                loadPattern(0);
+            } catch(e) { document.getElementById('status').innerText = "Error cargando ROM."; }
         }
 
-        // Motor de inyección de patrones (176 bytes por patrón)
         function loadPattern(index) {
-            if (!romData) return alert("La ROM aún no ha cargado.");
             const offset = index * 176;
-            
             instruments.forEach((inst, i) => {
                 for(let step=0; step<16; step++) {
-                    // Si el valor del byte es > 8, lo marcamos como activo
-                    matrix[inst][step] = romData[offset + (i * 16) + step] > 0x08;
+                    matrix[inst][step] = (romData[offset + (i * 16) + step] > 0x08);
                 }
             });
-            
-            // Refrescar UI
             document.querySelectorAll('.step').forEach(el => {
-                const active = matrix[el.dataset.inst][el.dataset.step];
-                el.classList.toggle('active', active);
+                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
             });
-            console.log("Patrón " + index + " inyectado en la matriz.");
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
+            console.log(isPlaying ? "Bólido en marcha..." : "Motor detenido.");
         }
 
         init();
