@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN: V4.0 Final Engine</title>
+    <title>TR-DeLOREAN v4.1</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
         .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 10px; }
@@ -13,8 +13,8 @@
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v4.0</h1>
-    <div id="status">Cargando...</div>
+    <h1>TR-DeLOREAN v4.1</h1>
+    <div id="status">Iniciando sistema...</div>
     <div id="controls">
         <select id="patternSelector" onchange="loadPattern(this.value)"></select>
         <button id="playBtn" onclick="togglePlay()">PLAY</button>
@@ -29,6 +29,7 @@
         let audioBuffers = {};
         let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
 
+        // DIBUJAR GRID INMEDIATAMENTE
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
@@ -41,13 +42,68 @@
             }
         });
 
+        async function init() {
+            document.getElementById('status').innerText = "Cargando archivos...";
+            try {
+                // Carga ROM
+                const romResp = await fetch('https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN');
+                romData = new Uint8Array(await romResp.arrayBuffer());
+                
+                // Carga Sonidos (Independiente)
+                for (let inst of instruments) {
+                    try {
+                        const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
+                        const resp = await fetch(url);
+                        if(resp.ok) {
+                            const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
+                            audioBuffers[inst] = buffer;
+                        }
+                    } catch(e) { console.warn("Sonido no encontrado: " + inst); }
+                }
+                document.getElementById('status').innerText = "Sistema Listo.";
+                loadPattern(0);
+            } catch(e) { document.getElementById('status').innerText = "Error cargando ROM."; }
+        }
+
         function toggleLock() {
             isLocked = !isLocked;
             document.getElementById('lockBtn').innerText = isLocked ? "🔒" : "🔓";
             document.getElementById('bpmInput').disabled = isLocked;
         }
 
-        async function init() {
-            try {
-                const romResp = await fetch('https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN');
-                romData = new Uint8Array(await
+        async function togglePlay() {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            isPlaying = !isPlaying;
+            document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
+            if (isPlaying) runSequence(); else clearTimeout(timerId);
+        }
+
+        function runSequence() {
+            if (!isPlaying) return;
+            instruments.forEach(inst => {
+                if (matrix[inst][stepIndex] && audioBuffers[inst]) {
+                    let source = audioCtx.createBufferSource();
+                    source.buffer = audioBuffers[inst];
+                    source.connect(audioCtx.destination);
+                    source.start(0);
+                }
+            });
+            stepIndex = (stepIndex + 1) % 16;
+            timerId = setTimeout(runSequence, (60000 / bpm) / 4);
+        }
+
+        function loadPattern(index) {
+            const offset = index * 176;
+            instruments.forEach((inst, i) => {
+                for(let step = 0; step < 16; step++) {
+                    matrix[inst][step] = (romData[offset + (i * 16) + step] > 0x15 && romData[offset + (i * 16) + step] < 0xF0);
+                }
+            });
+            document.querySelectorAll('.step').forEach(el => {
+                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
+            });
+        }
+        init();
+    </script>
+</body>
+</html>
