@@ -2,90 +2,112 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN Final</title>
+    <title>TR-DeLOREAN V5.0 - Morph Engine</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
         .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 10px; }
         .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; }
         .step.active { background: #0f0; }
-        #controls { margin: 10px; display: flex; gap: 10px; }
-        select, button, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; }
+        #controls { margin: 10px; display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+        button, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN</h1>
-    <div id="status">Iniciando...</div>
+    <h1>TR-DeLOREAN v5.0</h1>
     <div id="controls">
         <button id="playBtn" onclick="togglePlay()">PLAY</button>
-        <input type="number" id="bpmInput" value="120" onchange="bpm = this.value">
-        <button id="lockBtn" onclick="toggleLock()">🔓</button>
+        <button onclick="applyMorph()">MORPH 🧬</button>
+        <label>Swing: <input type="range" id="swing" min="0" max="0.2" step="0.01" value="0"></label>
+        <label>Hum: <input type="range" id="humanize" min="0" max="0.02" step="0.001" value="0"></label>
     </div>
     <div class="grid" id="grid"></div>
 
     <script>
-        // 1. Configuración básica
         let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
-        let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120, isLocked = false, timerId;
+        let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120;
         let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let nextStepTime = 0.0;
 
-        // 2. Dibujar Grid inmediatamente (esto no debe fallar)
+        // Crear Grid y matriz de acentos (1.0 = normal, 1.5 = acento)
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
             for(let i=0; i<16; i++) {
                 let div = document.createElement('div');
                 div.className = 'step';
+                div.dataset.inst = inst; div.dataset.step = i;
                 div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
                 gridDiv.appendChild(div);
             }
         });
 
-        // 3. Lógica de Audio y Carga
-        async function init() {
-            try {
-                // Intentar cargar archivos uno a uno
-                for (let inst of instruments) {
-                    const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
-                    const resp = await fetch(url);
-                    if(resp.ok) {
-                        const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
-                        audioBuffers[inst] = buffer;
-                    }
+        // Motor Morph: muta la matriz aleatoriamente
+        function applyMorph() {
+            instruments.forEach(inst => {
+                for(let i=0; i<16; i++) {
+                    if(Math.random() > 0.8) matrix[inst][i] = !matrix[inst][i];
                 }
-                document.getElementById('status').innerText = "Sistema listo.";
-            } catch(e) { console.log("Error cargando sonidos: " + e); }
-        }
-
-        function toggleLock() {
-            isLocked = !isLocked;
-            document.getElementById('lockBtn').innerText = isLocked ? "🔒" : "🔓";
-            document.getElementById('bpmInput').disabled = isLocked;
+            });
+            // Refrescar UI
+            document.querySelectorAll('.step').forEach(el => {
+                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
+            });
         }
 
         async function togglePlay() {
             if (audioCtx.state === 'suspended') await audioCtx.resume();
             isPlaying = !isPlaying;
             document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-            if (isPlaying) runSequence(); else clearTimeout(timerId);
+            if (isPlaying) { nextStepTime = audioCtx.currentTime; scheduler(); }
         }
 
-        function runSequence() {
-            if (!isPlaying) return;
+        function scheduler() {
+            while (nextStepTime < audioCtx.currentTime + 0.1) {
+                scheduleStep(stepIndex, nextStepTime);
+                nextStep();
+            }
+            setTimeout(scheduler, 25);
+        }
+
+        function scheduleStep(step, time) {
+            let swing = parseFloat(document.getElementById('swing').value);
+            let hum = parseFloat(document.getElementById('humanize').value);
+            
+            // Aplicar Swing: las notas impares se retrasan
+            let isEven = step % 2 !== 0;
+            let timeOffset = isEven ? swing * (60/bpm/4) : 0;
+            // Humanización: ligero jitter aleatorio
+            let jitter = (Math.random() - 0.5) * hum;
+
             instruments.forEach(inst => {
-                let steps = document.querySelectorAll(`[data-inst="${inst}"]`); // Esto es solo un ejemplo conceptual
-                // Nota: Por simplicidad, usamos la matriz interna
-                if (matrix[inst][stepIndex] && audioBuffers[inst]) {
+                if (matrix[inst][step] && audioBuffers[inst]) {
+                    let gainNode = audioCtx.createGain();
+                    // Acento: si el paso es 0, 4, 8, 12, aumenta volumen
+                    gainNode.gain.value = (step % 4 === 0) ? 1.2 : 0.8;
+                    
                     let source = audioCtx.createBufferSource();
                     source.buffer = audioBuffers[inst];
-                    source.connect(audioCtx.destination);
-                    source.start(0);
+                    source.connect(gainNode).connect(audioCtx.destination);
+                    source.start(time + timeOffset + jitter);
                 }
             });
-            stepIndex = (stepIndex + 1) % 16;
-            timerId = setTimeout(runSequence, (60000 / bpm) / 4);
         }
 
-        init();
+        function nextStep() {
+            nextStepTime += 0.25 * (60.0 / bpm);
+            stepIndex = (stepIndex + 1) % 16;
+        }
+
+        // Carga de sonidos simplificada
+        async function load() {
+            for (let inst of instruments) {
+                try {
+                    const resp = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
+                    audioBuffers[inst] = await audioCtx.decodeAudioData(await resp.arrayBuffer());
+                } catch(e) {}
+            }
+        }
+        load();
     </script>
 </body>
 </html>
