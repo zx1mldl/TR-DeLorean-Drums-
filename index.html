@@ -2,67 +2,58 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN v4.1</title>
+    <title>TR-DeLOREAN Final</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
         .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 10px; }
         .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; }
         .step.active { background: #0f0; }
-        #controls { margin: 10px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        #controls { margin: 10px; display: flex; gap: 10px; }
         select, button, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v4.1</h1>
-    <div id="status">Iniciando sistema...</div>
+    <h1>TR-DeLOREAN</h1>
+    <div id="status">Iniciando...</div>
     <div id="controls">
-        <select id="patternSelector" onchange="loadPattern(this.value)"></select>
         <button id="playBtn" onclick="togglePlay()">PLAY</button>
-        <label>BPM: <input type="number" id="bpmInput" value="120" min="60" max="200" onchange="bpm = this.value"></label>
+        <input type="number" id="bpmInput" value="120" onchange="bpm = this.value">
         <button id="lockBtn" onclick="toggleLock()">🔓</button>
     </div>
     <div class="grid" id="grid"></div>
 
     <script>
-        let matrix = {}, romData, isPlaying = false, stepIndex = 0, bpm = 120, isLocked = false, timerId;
-        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let audioBuffers = {};
+        // 1. Configuración básica
         let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
+        let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120, isLocked = false, timerId;
+        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // DIBUJAR GRID INMEDIATAMENTE
+        // 2. Dibujar Grid inmediatamente (esto no debe fallar)
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
             for(let i=0; i<16; i++) {
                 let div = document.createElement('div');
                 div.className = 'step';
-                div.dataset.inst = inst; div.dataset.step = i;
                 div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
                 gridDiv.appendChild(div);
             }
         });
 
+        // 3. Lógica de Audio y Carga
         async function init() {
-            document.getElementById('status').innerText = "Cargando archivos...";
             try {
-                // Carga ROM
-                const romResp = await fetch('https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN');
-                romData = new Uint8Array(await romResp.arrayBuffer());
-                
-                // Carga Sonidos (Independiente)
+                // Intentar cargar archivos uno a uno
                 for (let inst of instruments) {
-                    try {
-                        const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
-                        const resp = await fetch(url);
-                        if(resp.ok) {
-                            const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
-                            audioBuffers[inst] = buffer;
-                        }
-                    } catch(e) { console.warn("Sonido no encontrado: " + inst); }
+                    const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
+                    const resp = await fetch(url);
+                    if(resp.ok) {
+                        const buffer = await audioCtx.decodeAudioData(await resp.arrayBuffer());
+                        audioBuffers[inst] = buffer;
+                    }
                 }
-                document.getElementById('status').innerText = "Sistema Listo.";
-                loadPattern(0);
-            } catch(e) { document.getElementById('status').innerText = "Error cargando ROM."; }
+                document.getElementById('status').innerText = "Sistema listo.";
+            } catch(e) { console.log("Error cargando sonidos: " + e); }
         }
 
         function toggleLock() {
@@ -81,6 +72,8 @@
         function runSequence() {
             if (!isPlaying) return;
             instruments.forEach(inst => {
+                let steps = document.querySelectorAll(`[data-inst="${inst}"]`); // Esto es solo un ejemplo conceptual
+                // Nota: Por simplicidad, usamos la matriz interna
                 if (matrix[inst][stepIndex] && audioBuffers[inst]) {
                     let source = audioCtx.createBufferSource();
                     source.buffer = audioBuffers[inst];
@@ -92,17 +85,6 @@
             timerId = setTimeout(runSequence, (60000 / bpm) / 4);
         }
 
-        function loadPattern(index) {
-            const offset = index * 176;
-            instruments.forEach((inst, i) => {
-                for(let step = 0; step < 16; step++) {
-                    matrix[inst][step] = (romData[offset + (i * 16) + step] > 0x15 && romData[offset + (i * 16) + step] < 0xF0);
-                }
-            });
-            document.querySelectorAll('.step').forEach(el => {
-                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
-            });
-        }
         init();
     </script>
 </body>
