@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN: Motor Audio Pro v3.1</title>
+    <title>TR-DeLOREAN: Motor Final v3.2</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
         .grid { display: grid; grid-template-columns: repeat(16, 25px); gap: 3px; margin: 20px; }
@@ -13,8 +13,8 @@
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v3.1</h1>
-    <div id="status">Cargando ROM y Sonidos...</div>
+    <h1>TR-DeLOREAN v3.2</h1>
+    <div id="status">Cargando...</div>
     <div id="controls">
         <select id="patternSelector" onchange="loadPattern(this.value)"></select>
         <button id="playBtn" onclick="togglePlay()">PLAY / STOP</button>
@@ -24,10 +24,10 @@
     <script>
         let matrix = {}, romData, isPlaying = false, stepIndex = 0;
         let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let audioBuffers = {}; // Aquí guardaremos los sonidos cargados
-        let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Inst10', 'Inst11'];
+        let audioBuffers = {};
+        // Lista exacta de tus 16 archivos (primera letra en mayúscula)
+        let instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
 
-        // Crear grid
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
@@ -40,47 +40,26 @@
             }
         });
 
-        // Función para cargar sonidos desde GitHub
-        async function loadSound(name) {
-            const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${name}.wav`;
-            const resp = await fetch(url);
-            const arrayBuffer = await resp.arrayBuffer();
-            return await audioCtx.decodeAudioData(arrayBuffer);
-        }
-
         async function init() {
             try {
-                // Cargar ROM
+                // ROM (asegúrate de que el nombre del archivo aquí coincida 100% con el de GitHub)
                 const romResp = await fetch('https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/tr505similarpatterns.BIN');
                 romData = new Uint8Array(await romResp.arrayBuffer());
                 
-                // Cargar Sonidos
+                // Carga de los 16 sonidos
                 for (let inst of instruments) {
-                    try { audioBuffers[inst] = await loadSound(inst); } 
-                    catch(e) { console.warn("No se encontró el sonido: " + inst); }
+                    const url = `https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`;
+                    const resp = await fetch(url);
+                    const arrayBuffer = await resp.arrayBuffer();
+                    audioBuffers[inst] = await audioCtx.decodeAudioData(arrayBuffer);
                 }
-
-                const selector = document.getElementById('patternSelector');
-                for(let i=0; i<46; i++) {
-                    let opt = document.createElement('option');
-                    opt.value = i; opt.innerHTML = "Patrón " + (i + 1);
-                    selector.appendChild(opt);
-                }
-                document.getElementById('status').innerText = "Sistema listo. ¡A darle ritmo!";
+                document.getElementById('status').innerText = "Sistema listo. ¡Dale al PLAY!";
                 loadPattern(0);
-            } catch(e) { document.getElementById('status').innerText = "Error de carga."; }
+            } catch(e) { document.getElementById('status').innerText = "Error: Verifica los nombres de archivos."; }
         }
 
-        function playSound(name) {
-            if (!audioBuffers[name]) return;
-            let source = audioCtx.createBufferSource();
-            source.buffer = audioBuffers[name];
-            source.connect(audioCtx.destination);
-            source.start(0);
-        }
-
-        function togglePlay() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+        async function togglePlay() {
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
             isPlaying = !isPlaying;
             document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
             if (isPlaying) runSequence();
@@ -89,7 +68,12 @@
         function runSequence() {
             if (!isPlaying) return;
             instruments.forEach(inst => {
-                if (matrix[inst][stepIndex]) playSound(inst);
+                if (matrix[inst][stepIndex]) {
+                    let source = audioCtx.createBufferSource();
+                    source.buffer = audioBuffers[inst];
+                    source.connect(audioCtx.destination);
+                    source.start(0);
+                }
             });
             stepIndex = (stepIndex + 1) % 16;
             setTimeout(runSequence, 200);
@@ -99,14 +83,4 @@
             const offset = index * 176;
             instruments.forEach((inst, i) => {
                 for(let step = 0; step < 16; step++) {
-                    matrix[inst][step] = (romData[offset + (i * 16) + step] > 0x15 && romData[offset + (i * 16) + step] < 0xF0);
-                }
-            });
-            document.querySelectorAll('.step').forEach(el => {
-                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
-            });
-        }
-        init();
-    </script>
-</body>
-</html>
+                    matrix[inst][step] = (romData
