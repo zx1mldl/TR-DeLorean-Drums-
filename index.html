@@ -2,33 +2,31 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v6.0 | Estación de Ritmos Master</title>
+    <title>TR-DeLorean v6.3 | Master Console</title>
     <style>
         body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
         h1 { margin-top: 20px; text-transform: uppercase; letter-spacing: 5px; font-size: 20px; }
+        
+        #time-switch { margin: 15px; padding: 12px 20px; border: 2px solid #00ffcc; cursor: pointer; background: #000; color: #00ffcc; font-weight: bold; border-radius: 5px; }
+        #time-switch:active { background: #00ffcc; color: #000; }
         
         #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 15px; padding: 15px; border: 2px solid #333; margin: 10px; background: #1a1a1a; }
         .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; text-align: center; font-size: 11px; }
         .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 15px #00ffcc; }
         
-        /* SKINS DINÁMICOS */
-        .skin-bardet { border-color: #00ffcc; }
-        .skin-tokyo { border-color: #ff00ff; }
-
         #status-panel { margin-top: 10px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; font-size: 11px; }
-        
         #control-room { margin-top: 15px; padding: 15px; border: 2px solid #00ffcc; border-radius: 10px; width: 300px; display: flex; flex-direction: column; gap: 10px; background: #000; }
         .buttons-row { display: flex; justify-content: space-around; }
         button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 15px; cursor: pointer; font-family: inherit; font-weight: bold; }
         button:active { background: #00ffcc; color: #000; }
-        #bpm-display { text-align: center; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <h1>TR-DeLorean v6.0</h1>
+    <h1>TR-DeLorean v6.3</h1>
+    <div id="time-switch" onclick="toggleEra()">ERA ACTUAL: PASADO</div>
     <div id="rack-container"></div>
-    <div id="status-panel">Sistema: Standby</div>
+    <div id="status-panel">Sistema: Listo para carga</div>
 
     <div id="control-room">
         <div class="buttons-row">
@@ -39,51 +37,57 @@
     </div>
 
     <script>
-        const banks = [
-            { name: "Bardet 260", id: "bardet", color: "skin-bardet" },
-            { name: "Tokyo Test", id: "tokyo", color: "skin-tokyo" },
-            { name: "Witness Rhythm", id: "witness", color: "skin-bardet" },
-            { name: "CR-78 Vintage", id: "cr78", color: "skin-bardet" }
+        // Mapeo Inteligente por máquina
+        const MIDI_CONFIG = {
+            cr78: { 36: "KICK", 38: "SNARE", 42: "CLOSED_HAT" },
+            linndrum: { 36: "KICK", 38: "SNARE", 39: "CLAP", 42: "CLOSED_HAT" },
+            tr505: { 36: "KICK", 38: "SNARE", 42: "CLOSED_HAT" },
+            tr808: { 36: "KICK", 38: "SNARE", 39: "CLAP" },
+            tr909: { 36: "KICK", 38: "SNARE", 42: "CLOSED_HAT" },
+            dmx: { 36: "KICK", 38: "SNARE", 40: "RIMSHOT", 42: "CLOSED_HAT" }
+        };
+
+        const machines = [
+            { name: "CR-78", id: "cr78", era: "PASADO" },
+            { name: "LinnDrum", id: "linndrum", era: "PASADO" },
+            { name: "TR-505", id: "tr505", era: "PASADO" },
+            { name: "TR-808", id: "tr808", era: "FUTURO" },
+            { name: "TR-909", id: "tr909", era: "FUTURO" },
+            { name: "DMX", id: "dmx", era: "FUTURO" }
         ];
 
-        let isPlaying = false;
-        let clock;
+        let currentEra = 'PASADO';
 
-        function initRack() {
+        function toggleEra() {
+            currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO';
+            document.getElementById('time-switch').innerText = `ERA ACTUAL: ${currentEra}`;
+            renderRack();
+        }
+
+        function renderRack() {
             const container = document.getElementById('rack-container');
-            banks.forEach(bank => {
+            container.innerHTML = '';
+            machines.filter(m => m.era === currentEra).forEach(m => {
                 const div = document.createElement('div');
-                div.className = `bank-slot ${bank.color}`;
-                div.innerHTML = `<span>${bank.name}</span>`;
-                div.onclick = () => loadBank(bank);
+                div.className = 'bank-slot';
+                div.innerHTML = `<span>${m.name}</span>`;
+                div.onclick = () => loadBank(m);
                 container.appendChild(div);
             });
         }
 
-        async function loadBank(bank) {
+        async function loadBank(m) {
             const status = document.getElementById('status-panel');
-            status.innerText = `Cargando ADN: ${bank.name}...`;
-            console.log(`Cargando banco: ${bank.id}`);
-            
-            // Simulación de parser asíncrono
-            await new Promise(r => setTimeout(r, 800));
-            status.innerText = `Banco ${bank.name} activo.`;
+            status.innerText = `Cargando ${m.name}...`;
+            console.log(`Aplicando ADN para ${m.id}:`, MIDI_CONFIG[m.id]);
+            await new Promise(r => setTimeout(r, 600));
+            status.innerText = `Banco ${m.name} mapeado y listo.`;
         }
 
-        function playMachine() {
-            if (isPlaying) return;
-            isPlaying = true;
-            console.log("Motor de audio: Sincronización iniciada.");
-            clock = setInterval(() => console.log("Tick..."), 500);
-        }
+        function playMachine() { console.log("Motor de audio: Iniciado."); }
+        function stopMachine() { console.log("Motor de audio: Detenido."); }
 
-        function stopMachine() {
-            isPlaying = false;
-            clearInterval(clock);
-            console.log("Motor de audio: Detenido.");
-        }
-
-        window.onload = initRack;
+        window.onload = renderRack;
     </script>
 </body>
 </html>
