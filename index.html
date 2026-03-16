@@ -2,126 +2,52 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TR-DeLorean v16.0 | SWING & SWING RESTORED</title>
-    <style>
-        body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        #rack-container { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 15px; }
-        .bank-slot { width: 100px; height: 100px; background: #222; border: 2px solid #00ffcc; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; font-size: 10px; }
-        .active-machine { border-color: #ffcc00; background: #333; }
-        #controls { border: 2px solid #00ffcc; padding: 15px; width: 340px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
-        #sequencer { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; width: 340px; margin-top: 10px; }
-        .step { width: 18px; height: 30px; border: 1px solid #444; cursor: pointer; }
-        button { background: #000; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px; cursor: pointer; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>TR-DeLorean v16.0</h1>
-    <div id="time-switch" onclick="toggleEra()" style="cursor:pointer; border:1px solid #00ffcc; padding:5px;">ERA ACTUAL: PASADO</div>
+    <h1>🎵 TR-DeLorean v16.0 🎸</h1>
+    <div id="time-switch" title="Click para cambiar era">ERA ACTUAL: PASADO</div>
     <div id="rack-container"></div>
 
     <div id="controls">
-        <div style="display:flex; gap:10px; align-items:center;">
-            BPM: <input type="number" id="bpm" value="120" style="width:50px;">
-            <button id="lock-btn" onclick="toggleLock()">🔓</button>
-            <button onclick="togglePlay()">PLAY / STOP</button>
+        <div class="control-row">
+            <div class="control-group">
+                <label for="bpm">BPM:</label>
+                <input type="number" id="bpm" value="120" min="40" max="300">
+            </div>
+            <button id="lock-btn" title="Bloquear BPM">🔓</button>
+            <button id="play-btn" title="Play / Stop">▶ PLAY</button>
         </div>
-        <div style="display:flex; gap:10px; align-items:center;">
-            Loop: <select id="loop-len" onchange="updateLoop()" style="background:#000; color:#00ffcc; border:1px solid #00ffcc;">
-                <option value="16">16</option><option value="32">32</option><option value="64" selected>64</option>
-            </select>
-            Swing: <input type="range" id="swing" min="0" max="100" value="0" style="width:60px;">
-            Human: <input type="range" id="humanize" min="0" max="100" value="0" style="width:60px;">
+        <div class="control-row">
+            <div class="control-group">
+                <label for="loop-len">Loop:</label>
+                <select id="loop-len">
+                    <option value="16">16</option>
+                    <option value="32">32</option>
+                    <option value="64" selected>64</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="swing">Swing:</label>
+                <input type="range" id="swing" min="0" max="100" value="0">
+            </div>
+            <div class="control-group">
+                <label for="humanize">Human:</label>
+                <input type="range" id="humanize" min="0" max="100" value="0">
+            </div>
         </div>
     </div>
 
-    <div id="bank-nav" style="margin-top:10px;">
-        <button onclick="changeBank(0)">1-16</button><button onclick="changeBank(16)">17-32</button>
-        <button onclick="changeBank(32)">33-48</button><button onclick="changeBank(48)">49-64</button>
+    <div id="bank-nav">
+        <button onclick="changeBank(0)">1-16</button>
+        <button onclick="changeBank(16)">17-32</button>
+        <button onclick="changeBank(32)">33-48</button>
+        <button onclick="changeBank(48)">49-64</button>
     </div>
     <div id="sequencer"></div>
 
-    <script>
-        const machines = [
-            {name:"CR-78", era:"PASADO"}, {name:"LinnDrum", era:"PASADO"}, {name:"TR-505", era:"PASADO"},
-            {name:"TR-808", era:"FUTURO"}, {name:"TR-909", era:"FUTURO"}, {name:"DMX", era:"FUTURO"}
-        ];
-        
-        let currentEra = 'PASADO', currentBank = 0, currentMachine = "CR-78", loopLength = 64;
-        let patterns = {};
-        machines.forEach(m => patterns[m.name] = new Array(64).fill(0));
-
-        let isPlaying = false, isLocked = false, nextStepTime = 0, currentStep = 0;
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const samples = {};
-
-        async function loadSamples() {
-            const files = ['Kick.wav', 'Snare.wav', 'Closedhat.wav'];
-            for(let f of files) {
-                try {
-                    const res = await fetch(f);
-                    const buf = await res.arrayBuffer();
-                    audioCtx.decodeAudioData(buf, (b) => { samples[f] = b; });
-                } catch(e) {}
-            }
-        }
-
-        // Motor de Audio con Swing profesional y Humanización
-        function scheduler() {
-            while (nextStepTime < audioCtx.currentTime + 0.1) {
-                if (patterns[currentMachine][currentStep]) {
-                    // Lógica precisa de Swing: afecta pasos impares (1, 3, 5...)
-                    const swingAmount = document.getElementById('swing').value / 2000;
-                    const humanAmount = document.getElementById('humanize').value / 5000;
-                    
-                    const isSwingStep = (currentStep % 2 !== 0);
-                    const swingOffset = isSwingStep ? swingAmount : 0;
-                    const humanOffset = (Math.random() - 0.5) * humanAmount;
-                    
-                    const s = audioCtx.createBufferSource();
-                    s.buffer = samples['Kick.wav'];
-                    s.connect(audioCtx.destination);
-                    s.start(nextStepTime + swingOffset + humanOffset);
-                }
-                
-                currentStep = (currentStep + 1) % loopLength;
-                const bpm = document.getElementById('bpm').value;
-                nextStepTime += 60 / (bpm * 4);
-            }
-            if (isPlaying) requestAnimationFrame(scheduler);
-        }
-
-        function togglePlay() { isPlaying = !isPlaying; if(isPlaying) { nextStepTime = audioCtx.currentTime; scheduler(); } }
-        function toggleLock() { isLocked = !isLocked; document.getElementById('lock-btn').innerText = isLocked ? '🔒' : '🔓'; document.getElementById('bpm').disabled = isLocked; }
-        function toggleEra() { currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO'; document.getElementById('time-switch').innerText = `ERA ACTUAL: ${currentEra}`; renderRack(); }
-        function updateLoop() { loopLength = parseInt(document.getElementById('loop-len').value); renderSequencer(); }
-        function changeBank(offset) { currentBank = offset; renderSequencer(); }
-
-        function renderRack() {
-            const container = document.getElementById('rack-container');
-            container.innerHTML = '';
-            machines.filter(m => m.era === currentEra).forEach(m => {
-                const d = document.createElement('div');
-                d.className = 'bank-slot' + (currentMachine === m.name ? ' active-machine' : '');
-                d.innerText = m.name;
-                d.onclick = () => { currentMachine = m.name; renderRack(); renderSequencer(); };
-                container.appendChild(d);
-            });
-        }
-
-        function renderSequencer() {
-            const seq = document.getElementById('sequencer');
-            seq.innerHTML = '';
-            for(let i = 0; i < 16; i++) {
-                const idx = currentBank + i;
-                const step = document.createElement('div');
-                step.className = 'step';
-                step.style.background = (idx >= loopLength) ? '#333' : (patterns[currentMachine][idx] ? '#00ffcc' : '#222');
-                step.onclick = () => { if(idx < loopLength) { patterns[currentMachine][idx] = patterns[currentMachine][idx] ? 0 : 1; renderSequencer(); } };
-                seq.appendChild(step);
-            }
-        }
-
-        window.onload = () => { loadSamples(); renderRack(); renderSequencer(); };
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
