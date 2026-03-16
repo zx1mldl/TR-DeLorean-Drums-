@@ -2,53 +2,50 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v9.1 | Spark Edition + Swing/Humanize</title>
+    <title>TR-DeLorean v10.1 | FULL RECOVERY</title>
     <style>
-        body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
-        #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 15px; margin: 10px; }
-        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        #controls-master { margin: 20px; border: 1px solid #00ffcc; padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; width: 340px; justify-content: center; }
-        #sequencer { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; width: 340px; }
+        body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 10px; margin: 15px; }
+        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #00ffcc; display: flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
+        #controls { border: 2px solid #00ffcc; padding: 15px; width: 340px; }
+        #sequencer { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; width: 340px; margin-top: 10px; }
         .step { width: 18px; height: 30px; border: 1px solid #444; cursor: pointer; }
-        button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px; cursor: pointer; }
+        button { background: #000; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLorean v9.1</h1>
+    <h1>TR-DeLorean v10.1</h1>
     <div id="time-switch" onclick="toggleEra()">ERA ACTUAL: PASADO</div>
     <div id="rack-container"></div>
 
-    <div id="controls-master">
-        BPM: <input type="number" id="bpm" value="120" style="width: 40px;">
-        Loop: <select id="loop-len" onchange="updateLoop()">
-            <option value="16">16</option><option value="32">32</option><option value="64" selected>64</option>
-        </select>
-        Swing: <input type="range" id="swing" min="0" max="100" value="0">
+    <div id="controls">
+        BPM: <input type="number" id="bpm" value="120" style="width:50px;">
+        <button id="lock-btn" onclick="toggleLock()">🔓</button>
+        <button onclick="togglePlay()">PLAY/STOP</button>
+        <br><br>
+        Swing: <input type="range" id="swing" min="0" max="100">
         Human: <input type="checkbox" id="humanize">
-        <button onclick="togglePlay()">PLAY / STOP</button>
     </div>
 
-    <div id="sequencer-controls">
-        <button onclick="changeBank(0)">1-16</button>
-        <button onclick="changeBank(16)">17-32</button>
-        <button onclick="changeBank(32)">33-48</button>
-        <button onclick="changeBank(48)">49-64</button>
+    <div id="bank-nav">
+        <button onclick="changeBank(0)">1-16</button><button onclick="changeBank(16)">17-32</button>
+        <button onclick="changeBank(32)">33-48</button><button onclick="changeBank(48)">49-64</button>
     </div>
     <div id="sequencer"></div>
 
     <script>
-        let currentEra = 'PASADO', currentBank = 0, loopLength = 64, currentStep = 0;
-        let pattern = new Array(64).fill(0);
-        let isPlaying = false, nextStepTime = 0;
+        // ESTADO GLOBAL
+        const machines = [{name:"CR-78", era:"PASADO"}, {name:"LinnDrum", era:"PASADO"}, {name:"TR-505", era:"PASADO"}, {name:"TR-808", era:"FUTURO"}, {name:"TR-909", era:"FUTURO"}, {name:"DMX", era:"FUTURO"}];
+        let currentEra = 'PASADO', currentBank = 0, pattern = new Array(64).fill(0);
+        let isPlaying = false, isLocked = false, nextStepTime = 0, currentStep = 0;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const samples = {};
 
         async function load() {
             const files = ['Kick.wav', 'Snare.wav', 'Closedhat.wav'];
-            for(let f of files) {
-                let res = await fetch(f);
-                let buf = await res.arrayBuffer();
-                audioCtx.decodeAudioData(buf, (b) => { samples[f] = b; });
+            for(let f of files) { 
+                let res = await fetch(f); let buf = await res.arrayBuffer(); 
+                audioCtx.decodeAudioData(buf, (b) => { samples[f] = b; }); 
             }
             renderRack(); renderSequencer();
         }
@@ -56,33 +53,26 @@
         function scheduler() {
             while (nextStepTime < audioCtx.currentTime + 0.1) {
                 if (pattern[currentStep]) {
-                    // Lógica de Swing y Humanize
-                    let swingAmount = document.getElementById('swing').value / 500;
-                    let isSwingStep = (currentStep % 2 !== 0);
-                    let humanOffset = document.getElementById('humanize').checked ? (Math.random() - 0.5) * 0.02 : 0;
-                    let offset = (isSwingStep ? swingAmount : 0) + humanOffset;
-                    
                     let s = audioCtx.createBufferSource();
                     s.buffer = samples['Kick.wav'];
                     s.connect(audioCtx.destination);
-                    s.start(nextStepTime + offset);
+                    s.start(nextStepTime);
                 }
-                currentStep = (currentStep + 1) % loopLength;
+                currentStep = (currentStep + 1) % 64;
                 let bpm = document.getElementById('bpm').value;
                 nextStepTime += 60 / (bpm * 4);
             }
             if (isPlaying) requestAnimationFrame(scheduler);
         }
 
+        function toggleLock() { isLocked = !isLocked; document.getElementById('lock-btn').innerText = isLocked ? '🔒' : '🔓'; document.getElementById('bpm').disabled = isLocked; }
         function togglePlay() { isPlaying = !isPlaying; if(isPlaying) { nextStepTime = audioCtx.currentTime; scheduler(); } }
-        function updateLoop() { loopLength = parseInt(document.getElementById('loop-len').value); }
-        function toggleEra() { currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO'; renderRack(); }
+        function toggleEra() { currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO'; document.getElementById('time-switch').innerText = `ERA ACTUAL: ${currentEra}`; renderRack(); }
         function changeBank(offset) { currentBank = offset; renderSequencer(); }
 
         function renderRack() {
             const container = document.getElementById('rack-container');
             container.innerHTML = '';
-            const machines = [{name:"CR-78", era:"PASADO"}, {name:"TR-505", era:"PASADO"}, {name:"TR-808", era:"FUTURO"}, {name:"TR-909", era:"FUTURO"}];
             machines.filter(m => m.era === currentEra).forEach(m => {
                 let d = document.createElement('div'); d.className = 'bank-slot'; d.innerText = m.name;
                 container.appendChild(d);
@@ -96,12 +86,11 @@
                 let idx = currentBank + i;
                 let step = document.createElement('div');
                 step.className = 'step';
-                step.style.background = (idx >= loopLength) ? '#333' : (pattern[idx] ? '#00ffcc' : '#222');
+                step.style.background = pattern[idx] ? '#00ffcc' : '#222';
                 step.onclick = () => { pattern[idx] = pattern[idx] ? 0 : 1; renderSequencer(); };
                 seq.appendChild(step);
             }
         }
-
         window.onload = load;
     </script>
 </body>
