@@ -2,16 +2,16 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN V5.6</title>
+    <title>TR-DeLOREAN V5.6 | FULL ENGINE STABLE</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 15px; border: 1px solid #040; padding: 5px; }
-        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; }
-        .step.active { background: #0f0; box-shadow: 0 0 5px #0f0; }
-        .controls { display: flex; gap: 15px; margin: 15px; justify-content: center; }
+        .grid { display: grid; grid-template-columns: repeat(16, 22px); gap: 2px; margin: 15px; border: 1px solid #040; padding: 5px; }
+        .step { width: 22px; height: 22px; background: #222; cursor: pointer; border: 1px solid #0f0; }
+        .step.active { background: #0f0; box-shadow: 0 0 8px #0f0; }
+        .controls { display: flex; gap: 15px; margin: 15px; justify-content: center; align-items: center; }
         .control-group { display: flex; flex-direction: column; align-items: center; font-size: 10px; }
-        button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 8px; cursor: pointer; }
-        #console { margin-top: 10px; color: #888; font-size: 12px; }
+        button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0f0; color: #000; }
     </style>
 </head>
 <body>
@@ -20,8 +20,8 @@
     
     <div class="controls">
         <button id="playBtn" onclick="togglePlay()">PLAY</button>
-        <button onclick="applyMorph()">MORPH 🧬</button>
-        <button onclick="clearMatrix()">CLEAR 🗑️</button>
+        <button onclick="applyMorph()">MORPH</button>
+        <button onclick="clearMatrix()">CLEAR</button>
         
         <div class="control-group">
             <label>SWING</label>
@@ -34,13 +34,14 @@
     </div>
 
     <div id="grid" class="grid"></div>
-    <div id="console">> Motor listo.</div>
 
 <script>
     const instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
     let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, nextStepTime = 0, bpm = 120, timerId = null;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+    // 1. Construcción de la Interfaz (INTACTA)
+    const gridEl = document.getElementById('grid');
     instruments.forEach(inst => { 
         matrix[inst] = new Array(16).fill(false);
         for(let i=0; i<16; i++) {
@@ -48,19 +49,49 @@
             s.className = 'step';
             s.id = `step-${inst}-${i}`;
             s.onclick = () => { matrix[inst][i] = !matrix[inst][i]; s.classList.toggle('active'); };
-            document.getElementById('grid').appendChild(s);
+            gridEl.appendChild(s);
         }
     });
 
+    // 2. Carga de audio estable
     async function loadSounds() {
         for (const inst of instruments) {
             try {
                 const res = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
-                audioBuffers[inst] = await audioCtx.decodeAudioData(await res.arrayBuffer());
-            } catch(e) {}
+                const arrayBuffer = await res.arrayBuffer();
+                audioBuffers[inst] = await audioCtx.decodeAudioData(arrayBuffer);
+            } catch(e) { console.error("Error carga: " + inst); }
         }
     }
     loadSounds();
+
+    // 3. Motor de Audio Blindado
+    function scheduler() {
+        if (!isPlaying) return;
+        while (nextStepTime < audioCtx.currentTime + 0.1) {
+            const sw = parseFloat(document.getElementById('swing').value);
+            const hum = parseFloat(document.getElementById('humanize').value);
+            
+            instruments.forEach(inst => {
+                if (matrix[inst][stepIndex] && audioBuffers[inst]) {
+                    const s = audioCtx.createBufferSource();
+                    const g = audioCtx.createGain();
+                    s.buffer = audioBuffers[inst];
+                    
+                    // Lógica aplicada: Shuffle (pasos pares) + Humano (Jitter) + Dinámica (Velocidad aleatoria)
+                    let timeOffset = (stepIndex % 2 !== 0) ? sw * 0.15 : 0;
+                    let jitter = (Math.random() - 0.5) * hum;
+                    g.gain.value = 0.7 + (Math.random() * 0.3);
+                    
+                    s.connect(g).connect(audioCtx.destination);
+                    s.start(nextStepTime + timeOffset + jitter);
+                }
+            });
+            stepIndex = (stepIndex + 1) % 16;
+            nextStepTime += (60 / bpm) / 4;
+        }
+        timerId = setTimeout(scheduler, 25);
+    }
 
     function togglePlay() {
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -70,37 +101,23 @@
         else { clearTimeout(timerId); }
     }
 
-    function scheduler() {
-        if (!isPlaying) return;
-        while (nextStepTime < audioCtx.currentTime + 0.1) {
-            const sw = parseFloat(document.getElementById('swing').value);
-            const hum = parseFloat(document.getElementById('humanize').value);
-            
-            instruments.forEach(inst => {
-                if (matrix[inst][stepIndex] && audioBuffers[inst]) {
-                    // --- AQUÍ ESTÁ LO QUE PEDISTE: SHUFFLE Y DINÁMICA ---
-                    // Shuffle: Los pasos impares se retrasan según el swing
-                    let shuffleOffset = (stepIndex % 2 !== 0) ? sw * 0.15 : 0;
-                    // Dinámica: Variación aleatoria de volumen entre 0.7 y 1.0
-                    let dynamicVel = 0.7 + (Math.random() * 0.3);
-                    let jitter = (Math.random() - 0.5) * hum;
-                    
-                    const s = audioCtx.createBufferSource();
-                    const g = audioCtx.createGain();
-                    s.buffer = audioBuffers[inst];
-                    g.gain.value = dynamicVel; 
-                    s.connect(g).connect(audioCtx.destination);
-                    s.start(nextStepTime + shuffleOffset + jitter);
-                }
-            });
-            stepIndex = (stepIndex + 1) % 16;
-            nextStepTime += (60 / bpm) / 4;
-        }
-        timerId = setTimeout(scheduler, 25);
+    function clearMatrix() {
+        instruments.forEach(inst => {
+            matrix[inst].fill(false);
+            for(let i=0; i<16; i++) document.getElementById(`step-${inst}-${i}`).classList.remove('active');
+        });
     }
 
-    function clearMatrix() { instruments.forEach(inst => { matrix[inst].fill(false); document.querySelectorAll('.step').forEach(s => s.classList.remove('active')); }); }
-    function applyMorph() { instruments.forEach(inst => { for(let i=0; i<16; i++) if(Math.random() > 0.8) { matrix[inst][i] = !matrix[inst][i]; document.getElementById(`step-${inst}-${i}`).classList.toggle('active'); }}); }
+    function applyMorph() {
+        instruments.forEach(inst => {
+            for(let i=0; i<16; i++) {
+                if(Math.random() > 0.8) {
+                    matrix[inst][i] = !matrix[inst][i];
+                    document.getElementById(`step-${inst}-${i}`).classList.toggle('active', matrix[inst][i]);
+                }
+            }
+        });
+    }
 </script>
 </body>
 </html>
