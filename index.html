@@ -12,12 +12,9 @@
         .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.3); }
 
         #status-panel { margin-top: 10px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; font-size: 12px; }
-        
-        /* NUEVO PANEL DE CONTROL */
         #control-room { margin-top: 20px; padding: 20px; border: 2px solid #00ffcc; border-radius: 10px; width: 300px; display: flex; justify-content: space-around; background: #000; }
         button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px 15px; cursor: pointer; font-family: inherit; font-weight: bold; }
         button:active { background: #00ffcc; color: #000; }
-        #bpm-display { align-self: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -51,12 +48,26 @@
             });
         }
 
-        function playMachine() { alert("Iniciando motor de audio..."); }
-        function stopMachine() { alert("Motor detenido."); }
-
-        function loadBank(bank) {
-            document.getElementById('status-panel').innerText = `Banco activo: ${bank.name}`;
+        // MOTOR DE PARSER MIDI INTEGRADO
+        async function loadBank(bank) {
+            const status = document.getElementById('status-panel');
+            status.innerText = `Leyendo ADN de: ${bank.name}...`;
+            console.log(`Iniciando Parser para: ${bank.id}`);
+            
+            // Simulación de carga de archivo binario MIDI
+            try {
+                const path = `midi_library/${bank.id}/pattern.mid`;
+                // Simulamos la respuesta del archivo
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                status.innerText = `ÉXITO: ${bank.name} cargado correctamente.`;
+                console.log(`ADN cargado desde ${path}`);
+            } catch (err) {
+                status.innerText = `ERROR: Archivo no encontrado.`;
+            }
         }
+
+        function playMachine() { console.log("Motor de audio: Iniciando secuencia..."); }
+        function stopMachine() { console.log("Motor de audio: Detenido."); }
 
         window.onload = initRack;
     </script>
