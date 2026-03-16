@@ -2,30 +2,30 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v9.0 | Spark Edition</title>
+    <title>TR-DeLorean v9.1 | Spark Edition + Swing/Humanize</title>
     <style>
         body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
         #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 15px; margin: 10px; }
         .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        #controls-master { margin: 20px; border: 1px solid #00ffcc; padding: 10px; display: flex; gap: 10px; }
+        #controls-master { margin: 20px; border: 1px solid #00ffcc; padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; width: 340px; justify-content: center; }
         #sequencer { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; width: 340px; }
         .step { width: 18px; height: 30px; border: 1px solid #444; cursor: pointer; }
         button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLorean v9.0</h1>
+    <h1>TR-DeLorean v9.1</h1>
     <div id="time-switch" onclick="toggleEra()">ERA ACTUAL: PASADO</div>
     <div id="rack-container"></div>
 
     <div id="controls-master">
-        BPM: <input type="number" id="bpm" value="120">
+        BPM: <input type="number" id="bpm" value="120" style="width: 40px;">
         Loop: <select id="loop-len" onchange="updateLoop()">
-            <option value="16">16 Pasos</option>
-            <option value="32">32 Pasos</option>
-            <option value="64" selected>64 Pasos</option>
+            <option value="16">16</option><option value="32">32</option><option value="64" selected>64</option>
         </select>
-        <button onclick="togglePlay()">PLAY</button>
+        Swing: <input type="range" id="swing" min="0" max="100" value="0">
+        Human: <input type="checkbox" id="humanize">
+        <button onclick="togglePlay()">PLAY / STOP</button>
     </div>
 
     <div id="sequencer-controls">
@@ -37,14 +37,12 @@
     <div id="sequencer"></div>
 
     <script>
-        // ESTADO
         let currentEra = 'PASADO', currentBank = 0, loopLength = 64, currentStep = 0;
         let pattern = new Array(64).fill(0);
         let isPlaying = false, nextStepTime = 0;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const samples = {};
 
-        // INICIALIZACIÓN
         async function load() {
             const files = ['Kick.wav', 'Snare.wav', 'Closedhat.wav'];
             for(let f of files) {
@@ -52,31 +50,34 @@
                 let buf = await res.arrayBuffer();
                 audioCtx.decodeAudioData(buf, (b) => { samples[f] = b; });
             }
-            renderRack();
-            renderSequencer();
+            renderRack(); renderSequencer();
         }
 
-        // MOTOR
         function scheduler() {
             while (nextStepTime < audioCtx.currentTime + 0.1) {
                 if (pattern[currentStep]) {
+                    // Lógica de Swing y Humanize
+                    let swingAmount = document.getElementById('swing').value / 500;
+                    let isSwingStep = (currentStep % 2 !== 0);
+                    let humanOffset = document.getElementById('humanize').checked ? (Math.random() - 0.5) * 0.02 : 0;
+                    let offset = (isSwingStep ? swingAmount : 0) + humanOffset;
+                    
                     let s = audioCtx.createBufferSource();
                     s.buffer = samples['Kick.wav'];
                     s.connect(audioCtx.destination);
-                    s.start(nextStepTime);
+                    s.start(nextStepTime + offset);
                 }
-                currentStep = (currentStep + 1) % loopLength; // El bucle se ajusta aquí
+                currentStep = (currentStep + 1) % loopLength;
                 let bpm = document.getElementById('bpm').value;
                 nextStepTime += 60 / (bpm * 4);
             }
             if (isPlaying) requestAnimationFrame(scheduler);
         }
 
-        // INTERFAZ
-        function updateLoop() { loopLength = parseInt(document.getElementById('loop-len').value); }
         function togglePlay() { isPlaying = !isPlaying; if(isPlaying) { nextStepTime = audioCtx.currentTime; scheduler(); } }
-        function changeBank(offset) { currentBank = offset; renderSequencer(); }
+        function updateLoop() { loopLength = parseInt(document.getElementById('loop-len').value); }
         function toggleEra() { currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO'; renderRack(); }
+        function changeBank(offset) { currentBank = offset; renderSequencer(); }
 
         function renderRack() {
             const container = document.getElementById('rack-container');
