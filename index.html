@@ -2,108 +2,84 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v6.4 | Audio Engine</title>
+    <title>TR-DeLorean v6.5 | 64 Step Sequencer</title>
     <style>
         body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
         h1 { margin-top: 20px; text-transform: uppercase; letter-spacing: 5px; font-size: 20px; }
         
-        #time-switch { margin: 15px; padding: 12px 20px; border: 2px solid #00ffcc; cursor: pointer; background: #000; color: #00ffcc; font-weight: bold; border-radius: 5px; }
-        #time-switch:active { background: #00ffcc; color: #000; }
-        
-        #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 15px; padding: 15px; border: 2px solid #333; margin: 10px; background: #1a1a1a; }
-        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; text-align: center; font-size: 11px; }
-        .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 15px #00ffcc; }
-        
-        #status-panel { margin-top: 10px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; font-size: 11px; }
-        #control-room { margin-top: 15px; padding: 15px; border: 2px solid #00ffcc; border-radius: 10px; width: 300px; display: flex; flex-direction: column; gap: 10px; background: #000; }
-        button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 15px; cursor: pointer; font-family: inherit; font-weight: bold; }
+        #sequencer-controls { margin: 15px; display: flex; gap: 10px; }
+        button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 15px; cursor: pointer; font-weight: bold; }
         button:active { background: #00ffcc; color: #000; }
+        
+        #sequencer { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; width: 340px; margin-top: 10px; }
+        .step { width: 18px; height: 30px; border: 1px solid #444; cursor: pointer; }
+        
+        #status-panel { margin-top: 20px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; }
+        #control-room { margin-top: 15px; padding: 15px; border: 2px solid #00ffcc; width: 300px; display: flex; flex-direction: column; gap: 10px; background: #000; }
     </style>
 </head>
 <body>
 
-    <h1>TR-DeLorean v6.4</h1>
-    <div id="time-switch" onclick="toggleEra()">ERA ACTUAL: PASADO</div>
-    <div id="rack-container"></div>
-    <div id="status-panel">Sistema: Inicializando...</div>
+    <h1>TR-DeLorean v6.5</h1>
+
+    <div id="sequencer-controls">
+        <button onclick="changeBank(0)">1-16</button>
+        <button onclick="changeBank(16)">17-32</button>
+        <button onclick="changeBank(32)">33-48</button>
+        <button onclick="changeBank(48)">49-64</button>
+    </div>
+
+    <div id="sequencer"></div>
+    <div id="status-panel">Sistema: Listo.</div>
 
     <div id="control-room">
         <button onclick="playSample('Kick.wav')">TEST KICK (TR-505)</button>
-        <div style="display: flex; justify-content: space-around;">
-            <button onclick="playMachine()">PLAY</button>
-            <button onclick="stopMachine()">STOP</button>
-        </div>
     </div>
 
     <script>
-        // Mapeo Inteligente
-        const MIDI_CONFIG = {
-            cr78: { 36: "Kick.wav", 38: "Snare.wav" },
-            linndrum: { 36: "Kick.wav", 38: "Snare.wav" },
-            tr505: { 36: "Kick.wav", 38: "Snare.wav", 42: "Closedhat.wav" },
-            tr808: { 36: "Kick.wav", 38: "Snare.wav" },
-            tr909: { 36: "Kick.wav", 38: "Snare.wav" },
-            dmx: { 36: "Kick.wav", 38: "Snare.wav" }
-        };
-
-        const machines = [
-            { name: "CR-78", id: "cr78", era: "PASADO" },
-            { name: "LinnDrum", id: "linndrum", era: "PASADO" },
-            { name: "TR-505", id: "tr505", era: "PASADO" },
-            { name: "TR-808", id: "tr808", era: "FUTURO" },
-            { name: "TR-909", id: "tr909", era: "FUTURO" },
-            { name: "DMX", id: "dmx", era: "FUTURO" }
-        ];
-
-        // Motor de Audio
+        // 1. Configuración y Motor de Audio
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const samples = {};
         const sampleFiles = ['Kick.wav', 'Snare.wav', 'Closedhat.wav', 'Openhat.wav', 'Handclap.wav', 'Ride.wav', 'Crash.wav', 'Rim.wav'];
+        
+        // Estado del secuenciador (64 pasos)
+        let currentBankOffset = 0;
+        let patternState = new Array(64).fill(0);
 
         async function preloadSamples() {
-            document.getElementById('status-panel').innerText = "Cargando muestras...";
             for (const file of sampleFiles) {
                 try {
                     const response = await fetch(file);
                     const arrayBuffer = await response.arrayBuffer();
                     audioCtx.decodeAudioData(arrayBuffer, (buffer) => { samples[file] = buffer; });
-                } catch(e) { console.error("Error cargando: " + file); }
+                } catch(e) { console.error("Error al cargar: " + file); }
             }
-            document.getElementById('status-panel').innerText = "Sistema: Listo.";
         }
 
         function playSample(fileName) {
-            if (!samples[fileName]) { alert("Archivo no cargado aún"); return; }
+            if (!samples[fileName]) { alert("Archivo no cargado"); return; }
             const source = audioCtx.createBufferSource();
             source.buffer = samples[fileName];
             source.connect(audioCtx.destination);
             source.start(0);
         }
 
-        // Lógica de Interfaz
-        let currentEra = 'PASADO';
-        function toggleEra() {
-            currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO';
-            document.getElementById('time-switch').innerText = `ERA ACTUAL: ${currentEra}`;
-            renderRack();
+        // 2. Lógica del Secuenciador
+        function changeBank(offset) {
+            currentBankOffset = offset;
+            renderSequencer();
         }
 
-        function renderRack() {
-            const container = document.getElementById('rack-container');
-            container.innerHTML = '';
-            machines.filter(m => m.era === currentEra).forEach(m => {
-                const div = document.createElement('div');
-                div.className = 'bank-slot';
-                div.innerHTML = `<span>${m.name}</span>`;
-                div.onclick = () => console.log("Máquina seleccionada: " + m.name);
-                container.appendChild(div);
-            });
-        }
-
-        function playMachine() { console.log("Motor de audio: Iniciado."); }
-        function stopMachine() { console.log("Motor de audio: Detenido."); }
-
-        window.onload = () => { renderRack(); preloadSamples(); };
-    </script>
-</body>
-</html>
+        function renderSequencer() {
+            const seq = document.getElementById('sequencer');
+            seq.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                const stepIndex = currentBankOffset + i;
+                const step = document.createElement('div');
+                step.className = 'step';
+                // Estado visual
+                step.style.background = patternState[stepIndex] ? '#00ffcc' : '#222';
+                
+                step.onclick = () => {
+                    patternState[stepIndex] = patternState[stepIndex] ? 0 : 1;
+                    step.style.background = patternState[step
