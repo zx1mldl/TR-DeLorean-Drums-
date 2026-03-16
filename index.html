@@ -2,72 +2,86 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v6.0 | Estación de Ritmos</title>
+    <title>TR-DeLorean v6.0 | Estación de Ritmos Master</title>
     <style>
         body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; }
-        h1 { margin-top: 30px; text-transform: uppercase; letter-spacing: 5px; font-size: 24px; }
+        h1 { margin-top: 20px; text-transform: uppercase; letter-spacing: 5px; font-size: 20px; }
         
-        #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 20px; padding: 20px; border: 1px solid #333; margin: 20px; background: #1a1a1a; }
-        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; text-align: center; font-size: 12px; }
-        .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.3); }
+        #rack-container { display: grid; grid-template-columns: repeat(2, 140px); gap: 15px; padding: 15px; border: 2px solid #333; margin: 10px; background: #1a1a1a; }
+        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; text-align: center; font-size: 11px; }
+        .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 15px #00ffcc; }
+        
+        /* SKINS DINÁMICOS */
+        .skin-bardet { border-color: #00ffcc; }
+        .skin-tokyo { border-color: #ff00ff; }
 
-        #status-panel { margin-top: 10px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; font-size: 12px; }
-        #control-room { margin-top: 20px; padding: 20px; border: 2px solid #00ffcc; border-radius: 10px; width: 300px; display: flex; justify-content: space-around; background: #000; }
-        button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px 15px; cursor: pointer; font-family: inherit; font-weight: bold; }
+        #status-panel { margin-top: 10px; padding: 10px; border: 1px solid #00ffcc; width: 300px; text-align: center; font-size: 11px; }
+        
+        #control-room { margin-top: 15px; padding: 15px; border: 2px solid #00ffcc; border-radius: 10px; width: 300px; display: flex; flex-direction: column; gap: 10px; background: #000; }
+        .buttons-row { display: flex; justify-content: space-around; }
+        button { background: #222; color: #00ffcc; border: 1px solid #00ffcc; padding: 8px 15px; cursor: pointer; font-family: inherit; font-weight: bold; }
         button:active { background: #00ffcc; color: #000; }
+        #bpm-display { text-align: center; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <h1>TR-DeLorean v6.0</h1>
     <div id="rack-container"></div>
-    <div id="status-panel">Sistema: Listo para carga de ADN rítmico</div>
+    <div id="status-panel">Sistema: Standby</div>
 
     <div id="control-room">
-        <button onclick="playMachine()">PLAY</button>
-        <button onclick="stopMachine()">STOP</button>
+        <div class="buttons-row">
+            <button onclick="playMachine()">PLAY</button>
+            <button onclick="stopMachine()">STOP</button>
+        </div>
         <div id="bpm-display">BPM: 120</div>
     </div>
 
     <script>
         const banks = [
-            { name: "Bardet 260", id: "bardet" },
-            { name: "Tokyo Test", id: "tokyo" },
-            { name: "Witness Rhythm", id: "witness" },
-            { name: "CR-78 Vintage", id: "cr78" }
+            { name: "Bardet 260", id: "bardet", color: "skin-bardet" },
+            { name: "Tokyo Test", id: "tokyo", color: "skin-tokyo" },
+            { name: "Witness Rhythm", id: "witness", color: "skin-bardet" },
+            { name: "CR-78 Vintage", id: "cr78", color: "skin-bardet" }
         ];
+
+        let isPlaying = false;
+        let clock;
 
         function initRack() {
             const container = document.getElementById('rack-container');
             banks.forEach(bank => {
                 const div = document.createElement('div');
-                div.className = 'bank-slot';
+                div.className = `bank-slot ${bank.color}`;
                 div.innerHTML = `<span>${bank.name}</span>`;
                 div.onclick = () => loadBank(bank);
                 container.appendChild(div);
             });
         }
 
-        // MOTOR DE PARSER MIDI INTEGRADO
         async function loadBank(bank) {
             const status = document.getElementById('status-panel');
-            status.innerText = `Leyendo ADN de: ${bank.name}...`;
-            console.log(`Iniciando Parser para: ${bank.id}`);
+            status.innerText = `Cargando ADN: ${bank.name}...`;
+            console.log(`Cargando banco: ${bank.id}`);
             
-            // Simulación de carga de archivo binario MIDI
-            try {
-                const path = `midi_library/${bank.id}/pattern.mid`;
-                // Simulamos la respuesta del archivo
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                status.innerText = `ÉXITO: ${bank.name} cargado correctamente.`;
-                console.log(`ADN cargado desde ${path}`);
-            } catch (err) {
-                status.innerText = `ERROR: Archivo no encontrado.`;
-            }
+            // Simulación de parser asíncrono
+            await new Promise(r => setTimeout(r, 800));
+            status.innerText = `Banco ${bank.name} activo.`;
         }
 
-        function playMachine() { console.log("Motor de audio: Iniciando secuencia..."); }
-        function stopMachine() { console.log("Motor de audio: Detenido."); }
+        function playMachine() {
+            if (isPlaying) return;
+            isPlaying = true;
+            console.log("Motor de audio: Sincronización iniciada.");
+            clock = setInterval(() => console.log("Tick..."), 500);
+        }
+
+        function stopMachine() {
+            isPlaying = false;
+            clearInterval(clock);
+            console.log("Motor de audio: Detenido.");
+        }
 
         window.onload = initRack;
     </script>
