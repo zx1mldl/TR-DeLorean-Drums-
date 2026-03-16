@@ -2,45 +2,79 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN V5.2 - Rock Solid</title>
+    <title>TR-DeLOREAN V5.3 - Ready for Library</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
+        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
         .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 15px; }
-        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; }
-        .step.active { background: #0f0; }
-        #controls { margin: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-        button, input { background: #000; color: #0f0; border: 1px solid #0f0; padding: 6px; cursor: pointer; }
+        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; transition: 0.1s; }
+        .step.active { background: #0f0; box-shadow: 0 0 5px #0f0; }
+        .step.playing { border-color: #fff; transform: scale(1.1); }
+        #controls { margin: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 400px; }
+        button, input, select { background: #000; color: #0f0; border: 1px solid #0f0; padding: 8px; cursor: pointer; font-family: monospace; }
+        .slider-group { display: flex; flex-direction: column; align-items: center; font-size: 10px; }
+        #console { width: 90%; max-width: 400px; height: 60px; background: #020; border: 1px solid #0f0; margin-top: 10px; padding: 5px; font-size: 11px; overflow-y: auto; color: #0c0; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v5.2</h1>
+    <h1>TR-DeLOREAN v5.3</h1>
+    
     <div id="controls">
-        <button id="playBtn" onclick="togglePlay()">PLAY</button>
+        <button id="playBtn" onclick="togglePlay()" style="background: #040;">PLAY/STOP</button>
         <button onclick="applyMorph()">MORPH 🧬</button>
-        <label>Swing: <input type="range" id="swing" min="0" max="0.2" step="0.01" value="0"></label>
-        <label>Hum: <input type="range" id="humanize" min="0" max="0.02" step="0.001" value="0"></label>
+        <button onclick="clearMatrix()">CLEAR 🗑️</button>
+        
+        <div class="slider-group">
+            <label>BPM: <span id="bpmVal">120</span></label>
+            <input type="range" id="bpmInput" min="60" max="200" value="120" oninput="updateBPM(this.value)">
+        </div>
+
+        <div class="slider-group">
+            <label>SWING</label>
+            <input type="range" id="swing" min="0" max="0.2" step="0.01" value="0">
+        </div>
+
+        <div class="slider-group">
+            <label>HUMAN</label>
+            <input type="range" id="humanize" min="0" max="0.02" step="0.001" value="0.005">
+        </div>
     </div>
+
     <div class="grid" id="grid"></div>
+
+    <div id="console">> Sistema TR-DeLOREAN listo para carga de patrones...</div>
 
     <script>
         const instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
         let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120, nextStepTime = 0.0, timerId = null;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // 1. UI Setup
+        // Inicializar Grid
         const gridDiv = document.getElementById('grid');
         instruments.forEach(inst => {
             matrix[inst] = new Array(16).fill(false);
             for(let i = 0; i < 16; i++) {
                 let div = document.createElement('div');
                 div.className = 'step';
-                div.dataset.inst = inst; div.dataset.step = i;
+                div.id = `step-${inst}-${i}`;
                 div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
                 gridDiv.appendChild(div);
             }
         });
 
-        // 2. Audio Engine
+        function log(msg) {
+            const c = document.getElementById('console');
+            c.innerHTML += `<br>> ${msg}`;
+            c.scrollTop = c.scrollHeight;
+        }
+
+        function updateBPM(v) { bpm = v; document.getElementById('bpmVal').innerText = v; }
+
+        function clearMatrix() {
+            instruments.forEach(inst => matrix[inst].fill(false));
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            log("Memoria limpia.");
+        }
+
         function scheduler() {
             if (!isPlaying) return;
             while (nextStepTime < audioCtx.currentTime + 0.1) {
@@ -51,15 +85,23 @@
         }
 
         function scheduleStep(step, time) {
-            const swing = parseFloat(document.getElementById('swing').value);
+            const sw = parseFloat(document.getElementById('swing').value);
             const hum = parseFloat(document.getElementById('humanize').value);
-            const timeOffset = (step % 2 !== 0) ? swing * (60 / bpm / 4) : 0;
+            const timeOffset = (step % 2 !== 0) ? sw * (60 / bpm / 4) : 0;
             const jitter = (Math.random() - 0.5) * hum;
+
+            // Visualización del paso actual
+            setTimeout(() => {
+                document.querySelectorAll('.step').forEach(el => el.classList.remove('playing'));
+                instruments.forEach(inst => {
+                    document.getElementById(`step-${inst}-${step}`).classList.add('playing');
+                });
+            }, (time - audioCtx.currentTime) * 1000);
 
             instruments.forEach(inst => {
                 if (matrix[inst][step] && audioBuffers[inst]) {
                     const gainNode = audioCtx.createGain();
-                    gainNode.gain.value = (step % 4 === 0) ? 1.2 : 0.8;
+                    gainNode.gain.value = (step % 4 === 0) ? 1.3 : 0.8; // Acento cada 4
                     const source = audioCtx.createBufferSource();
                     source.buffer = audioBuffers[inst];
                     source.connect(gainNode).connect(audioCtx.destination);
@@ -73,39 +115,39 @@
             stepIndex = (stepIndex + 1) % 16;
         }
 
-        // 3. Controls
         function togglePlay() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             isPlaying = !isPlaying;
-            document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-            
-            if (isPlaying) {
-                nextStepTime = audioCtx.currentTime;
-                scheduler();
-            } else {
-                clearTimeout(timerId);
-                timerId = null;
+            if (isPlaying) { 
+                stepIndex = 0; nextStepTime = audioCtx.currentTime; scheduler(); log("Iniciando secuencia...");
+            } else { 
+                clearTimeout(timerId); log("Parada de motor.");
             }
         }
 
         function applyMorph() {
+            log("Aplicando Morph Engine...");
             instruments.forEach(inst => {
                 for(let i = 0; i < 16; i++) {
-                    if(Math.random() > 0.85) matrix[inst][i] = !matrix[inst][i];
+                    if(Math.random() > 0.88) matrix[inst][i] = !matrix[inst][i];
                 }
             });
             document.querySelectorAll('.step').forEach(el => {
-                el.classList.toggle('active', matrix[el.dataset.inst][el.dataset.step]);
+                const inst = el.id.split('-')[1];
+                const step = el.id.split('-')[2];
+                el.classList.toggle('active', matrix[inst][step]);
             });
         }
 
         async function loadSounds() {
+            log("Cargando ROM de sonidos...");
             for (const inst of instruments) {
                 try {
                     const res = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
                     audioBuffers[inst] = await audioCtx.decodeAudioData(await res.arrayBuffer());
-                } catch(e) { console.warn(`Error carga: ${inst}`); }
+                } catch(e) { console.warn(inst); }
             }
+            log("ROM cargada con éxito.");
         }
         loadSounds();
     </script>
