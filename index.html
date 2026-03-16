@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN V5.6 | El Definitivo</title>
+    <title>TR-DeLOREAN V5.6 | Full Operational</title>
     <style>
         body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
         .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 15px; border: 1px solid #040; padding: 5px; }
@@ -39,18 +39,16 @@
     </div>
 
     <div id="grid" class="grid"></div>
-    <div id="console">> Sistema cargado.</div>
+    <div id="console">> Motor preparado. Cargando samples...</div>
 
 <script>
     const instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
-    let matrix = {}, isPlaying = false, stepIndex = 0, nextStepTime = 0, bpm = 120, timerId = null;
+    let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, nextStepTime = 0, bpm = 120, timerId = null;
     let modes = { shuffle: false, velocity: false };
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Crear la matriz original
+    // 1. Inicialización
     instruments.forEach(inst => { matrix[inst] = new Array(16).fill(false); });
-
-    // Crear el grid original
     const gridEl = document.getElementById('grid');
     instruments.forEach(inst => {
         for(let i=0; i<16; i++) {
@@ -62,21 +60,30 @@
         }
     });
 
-    // Lógica de Modos (Shuffle/Dyn-Vel)
+    // 2. Carga de Sonidos
+    async function loadSounds() {
+        for (const inst of instruments) {
+            try {
+                const res = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
+                audioBuffers[inst] = await audioCtx.decodeAudioData(await res.arrayBuffer());
+            } catch(e) { console.error("No se pudo cargar: " + inst); }
+        }
+        document.getElementById('console').innerText = "> ROM CARGADA. READY.";
+    }
+    loadSounds();
+
+    // 3. Lógica de Control
     function toggleMode(mode) {
         modes[mode] = !modes[mode];
         document.getElementById('btn' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.toggle('active');
     }
 
     function togglePlay() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         isPlaying = !isPlaying;
         document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-        if (isPlaying) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            stepIndex = 0;
-            nextStepTime = audioCtx.currentTime;
-            scheduler();
-        } else { clearTimeout(timerId); }
+        if (isPlaying) { stepIndex = 0; nextStepTime = audioCtx.currentTime; scheduler(); }
+        else { clearTimeout(timerId); }
     }
 
     function clearMatrix() {
@@ -97,16 +104,27 @@
         });
     }
 
+    // 4. Motor de Audio
     function scheduler() {
         if (!isPlaying) return;
         while (nextStepTime < audioCtx.currentTime + 0.1) {
-            // Valores actuales de los sliders
             const sw = parseFloat(document.getElementById('swing').value);
             const hum = parseFloat(document.getElementById('humanize').value);
             
-            // Aquí tu lógica de audio original sigue intacta.
-            // He añadido las variables 'sw', 'hum' y 'modes' para que las uses en el trigger.
+            let timeOffset = (modes.shuffle && stepIndex % 2 !== 0) ? sw * 0.1 : 0;
+            let jitter = (Math.random() - 0.5) * hum;
             
+            instruments.forEach(inst => {
+                if (matrix[inst][stepIndex] && audioBuffers[inst]) {
+                    const g = audioCtx.createGain();
+                    const s = audioCtx.createBufferSource();
+                    s.buffer = audioBuffers[inst];
+                    g.gain.value = modes.velocity ? (Math.random() * 0.4 + 0.6) : 1.0;
+                    s.connect(g).connect(audioCtx.destination);
+                    s.start(nextStepTime + timeOffset + jitter);
+                }
+            });
+
             stepIndex = (stepIndex + 1) % 16;
             nextStepTime += (60 / bpm) / 4;
         }
