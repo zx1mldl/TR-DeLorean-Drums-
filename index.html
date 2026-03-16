@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLorean v14.0 | AUTO-KIT SYSTEM</title>
+    <title>TR-DeLorean v16.0 | SWING & SWING RESTORED</title>
     <style>
         body { background: #121212; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         #rack-container { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 15px; }
@@ -15,7 +15,7 @@
     </style>
 </head>
 <body>
-    <h1>TR-DeLorean v14.0</h1>
+    <h1>TR-DeLorean v16.0</h1>
     <div id="time-switch" onclick="toggleEra()" style="cursor:pointer; border:1px solid #00ffcc; padding:5px;">ERA ACTUAL: PASADO</div>
     <div id="rack-container"></div>
 
@@ -25,9 +25,12 @@
             <button id="lock-btn" onclick="toggleLock()">🔓</button>
             <button onclick="togglePlay()">PLAY / STOP</button>
         </div>
-        <div style="display:flex; gap:15px; align-items:center;">
-            Swing: <input type="range" id="swing" min="0" max="100" value="0" style="width:80px;">
-            Human: <input type="range" id="humanize" min="0" max="100" value="0" style="width:80px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+            Loop: <select id="loop-len" onchange="updateLoop()" style="background:#000; color:#00ffcc; border:1px solid #00ffcc;">
+                <option value="16">16</option><option value="32">32</option><option value="64" selected>64</option>
+            </select>
+            Swing: <input type="range" id="swing" min="0" max="100" value="0" style="width:60px;">
+            Human: <input type="range" id="humanize" min="0" max="100" value="0" style="width:60px;">
         </div>
     </div>
 
@@ -43,20 +46,13 @@
             {name:"TR-808", era:"FUTURO"}, {name:"TR-909", era:"FUTURO"}, {name:"DMX", era:"FUTURO"}
         ];
         
-        let currentEra = 'PASADO', currentBank = 0, currentMachine = "CR-78";
+        let currentEra = 'PASADO', currentBank = 0, currentMachine = "CR-78", loopLength = 64;
         let patterns = {};
         machines.forEach(m => patterns[m.name] = new Array(64).fill(0));
 
         let isPlaying = false, isLocked = false, nextStepTime = 0, currentStep = 0;
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const samples = {};
-
-        // Función de Auto-Adaptación del Kit
-        function updateAudioKit(machineName) {
-            console.log("Adaptando motor al kit: " + machineName);
-            // Aquí se cargarían los perfiles de audio específicos para cada máquina
-            // Por ahora, validamos la transición del estado del motor
-        }
 
         async function loadSamples() {
             const files = ['Kick.wav', 'Snare.wav', 'Closedhat.wav'];
@@ -69,19 +65,25 @@
             }
         }
 
+        // Motor de Audio con Swing profesional y Humanización
         function scheduler() {
             while (nextStepTime < audioCtx.currentTime + 0.1) {
                 if (patterns[currentMachine][currentStep]) {
-                    const swing = document.getElementById('swing').value / 500;
-                    const human = document.getElementById('humanize').value / 5000;
-                    const offset = (currentStep % 2 !== 0 ? swing : 0) + (Math.random() - 0.5) * human;
+                    // Lógica precisa de Swing: afecta pasos impares (1, 3, 5...)
+                    const swingAmount = document.getElementById('swing').value / 2000;
+                    const humanAmount = document.getElementById('humanize').value / 5000;
+                    
+                    const isSwingStep = (currentStep % 2 !== 0);
+                    const swingOffset = isSwingStep ? swingAmount : 0;
+                    const humanOffset = (Math.random() - 0.5) * humanAmount;
                     
                     const s = audioCtx.createBufferSource();
                     s.buffer = samples['Kick.wav'];
                     s.connect(audioCtx.destination);
-                    s.start(nextStepTime + offset);
+                    s.start(nextStepTime + swingOffset + humanOffset);
                 }
-                currentStep = (currentStep + 1) % 64;
+                
+                currentStep = (currentStep + 1) % loopLength;
                 const bpm = document.getElementById('bpm').value;
                 nextStepTime += 60 / (bpm * 4);
             }
@@ -91,6 +93,7 @@
         function togglePlay() { isPlaying = !isPlaying; if(isPlaying) { nextStepTime = audioCtx.currentTime; scheduler(); } }
         function toggleLock() { isLocked = !isLocked; document.getElementById('lock-btn').innerText = isLocked ? '🔒' : '🔓'; document.getElementById('bpm').disabled = isLocked; }
         function toggleEra() { currentEra = (currentEra === 'PASADO') ? 'FUTURO' : 'PASADO'; document.getElementById('time-switch').innerText = `ERA ACTUAL: ${currentEra}`; renderRack(); }
+        function updateLoop() { loopLength = parseInt(document.getElementById('loop-len').value); renderSequencer(); }
         function changeBank(offset) { currentBank = offset; renderSequencer(); }
 
         function renderRack() {
@@ -100,12 +103,7 @@
                 const d = document.createElement('div');
                 d.className = 'bank-slot' + (currentMachine === m.name ? ' active-machine' : '');
                 d.innerText = m.name;
-                d.onclick = () => { 
-                    currentMachine = m.name; 
-                    updateAudioKit(m.name); // Dispara la auto-adaptación
-                    renderRack(); 
-                    renderSequencer(); 
-                };
+                d.onclick = () => { currentMachine = m.name; renderRack(); renderSequencer(); };
                 container.appendChild(d);
             });
         }
@@ -117,8 +115,8 @@
                 const idx = currentBank + i;
                 const step = document.createElement('div');
                 step.className = 'step';
-                step.style.background = patterns[currentMachine][idx] ? '#00ffcc' : '#222';
-                step.onclick = () => { patterns[currentMachine][idx] = patterns[currentMachine][idx] ? 0 : 1; renderSequencer(); };
+                step.style.background = (idx >= loopLength) ? '#333' : (patterns[currentMachine][idx] ? '#00ffcc' : '#222');
+                step.onclick = () => { if(idx < loopLength) { patterns[currentMachine][idx] = patterns[currentMachine][idx] ? 0 : 1; renderSequencer(); } };
                 seq.appendChild(step);
             }
         }
