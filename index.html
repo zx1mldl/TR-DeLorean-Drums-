@@ -2,218 +2,46 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN V5.6 - Flux Capacitor Mode</title>
+    <title>TR-DeLorean v6.0 | Estación de Ritmos</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 15px; border: 1px solid #040; padding: 5px; }
-        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; transition: 0.1s; }
-        .step.active { background: #0f0; box-shadow: 0 0 5px #0f0; }
-        .step.playing { border-color: #fff; transform: scale(1.1); }
-        #controls { margin: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 600px; }
-        button, input, select { background: #000; color: #0f0; border: 1px solid #0f0; padding: 8px; cursor: pointer; font-family: monospace; }
-        .slider-group { display: flex; flex-direction: column; align-items: center; font-size: 10px; width: 85px; }
-        #console { width: 90%; max-width: 400px; height: 60px; background: #020; border: 1px solid #0f0; margin-top: 10px; padding: 5px; font-size: 11px; overflow-y: auto; color: #0c0; }
-        
-        /* Colores del Candado */
-        .lock-open { border-color: #0f0; color: #0f0; }
-        .lock-total { border-color: #f00 !important; color: #f00 !important; box-shadow: 0 0 5px #f00; }
-        .lock-flux { border-color: #0cf !important; color: #0cf !important; box-shadow: 0 0 10px #0cf; text-shadow: 0 0 5px #0cf; }
+        body { background: #1a1a1a; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; }
+        #rack-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 40px; }
+        .bank-slot { 
+            width: 150px; height: 150px; background: #333; border: 2px solid #555; 
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.3s; text-align: center; border-radius: 10px;
+        }
+        .bank-slot:hover { background: #444; border-color: #00ffcc; box-shadow: 0 0 15px #00ffcc; }
+        h1 { margin-top: 50px; text-transform: uppercase; letter-spacing: 5px; }
     </style>
 </head>
 <body>
-    <h1>TR-DeLOREAN v5.6</h1>
-    
-    <div id="controls">
-        <button id="playBtn" onclick="togglePlay()" style="background: #040;">PLAY/STOP</button>
-        
-        <select id="genreSelector" onchange="applyGenre(this.value)">
-            <option value="">ESTILO ADN...</option>
-            <option value="reggaeton">REGGAETON</option>
-            <option value="synthwave">SYNTHWAVE</option>
-            <option value="ebm">EBM / INDUSTRIAL</option>
-            <option value="hiphop">OLD SCHOOL HIPHOP</option>
-            <option value="italo">ITALO DISCO</option>
-        </select>
 
-        <button id="lockBtn" 
-                onmousedown="startLockPress()" 
-                onmouseup="endLockPress()" 
-                ontouchstart="startLockPress()" 
-                ontouchend="endLockPress()"
-                class="lock-open">🔓</button>
-
-        <button onclick="applyMorph()">MORPH 🧬</button>
-        <button onclick="clearMatrix()">CLEAR 🗑️</button>
-        
-        <div class="slider-group">
-            <label>BPM: <span id="bpmVal">120</span></label>
-            <input type="range" id="bpmInput" min="60" max="200" value="120" oninput="updateBPM(this.value)">
-        </div>
-
-        <div class="slider-group">
-            <label>SWING</label>
-            <input type="range" id="swing" min="0" max="0.2" step="0.01" value="0">
-        </div>
-    </div>
-
-    <div class="grid" id="grid"></div>
-    <div id="console">> TR-DeLorean Lista. Mantén pulsado 🔒 para modo RAYO.</div>
+    <h1>TR-DeLorean v6.0</h1>
+    <div id="rack-container"></div>
 
     <script>
-        const instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
-        let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120, nextStepTime = 0.0, timerId = null;
-        
-        // Estados: 0=Abierto, 1=Bloqueo Total (Rojo), 2=Modo Rayo (Azul)
-        let lockState = 0; 
-        let pressTimer;
+        // --- Lógica del Motor v6.0 ---
+        const banks = [
+            { name: "Bardet 260", id: "bardet" },
+            { name: "Tokyo Test", id: "tokyo" },
+            { name: "Witness Rhythm", id: "witness" },
+            { name: "CR-78 Vintage", id: "cr78" }
+        ];
 
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        // Inicializar Grid
-        const gridDiv = document.getElementById('grid');
-        instruments.forEach(inst => {
-            matrix[inst] = new Array(16).fill(false);
-            for(let i = 0; i < 16; i++) {
-                let div = document.createElement('div');
-                div.className = 'step';
-                div.id = `step-${inst}-${i}`;
-                div.onclick = () => { matrix[inst][i] = !matrix[inst][i]; div.classList.toggle('active'); };
-                gridDiv.appendChild(div);
-            }
-        });
-
-        const genres = {
-            reggaeton: { bpm: 95, swing: 0.12, patterns: { 'Kick': [0, 8, 11], 'Snare': [3, 6, 11, 14], 'ClHat': [0, 2, 4, 6, 8, 10, 12, 14] } },
-            synthwave: { bpm: 115, swing: 0, patterns: { 'Kick': [0, 4, 8, 12], 'Snare': [4, 12], 'ClHat': [0, 2, 4, 6, 8, 10, 12, 14] } },
-            ebm: { bpm: 128, swing: 0, patterns: { 'Kick': [0, 4, 8, 12], 'Snare': [4, 12], 'Clap': [4, 12], 'ClHat': [0, 2, 4, 6, 8, 10, 12, 14] } },
-            hiphop: { bpm: 90, swing: 0.08, patterns: { 'Kick': [0, 1, 9], 'Snare': [4, 12], 'ClHat': [0, 2, 4, 6, 8, 10, 12, 14] } },
-            italo: { bpm: 120, swing: 0.02, patterns: { 'Kick': [0, 4, 8, 12], 'Snare': [4, 12], 'ClHat': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 'Cowbell': [3, 7, 11, 15] } }
-        };
-
-        // Lógica de pulsación larga para el candado
-        function startLockPress() {
-            pressTimer = setTimeout(() => {
-                lockState = 2; // Activar Modo Rayo (Azul)
-                updateLockUI();
-                log("¡MODO FLUZO ACTIVADO! (BPM bloqueado, Swing libre)");
-            }, 800); // 800ms para considerar pulsación larga
-        }
-
-        function endLockPress() {
-            clearTimeout(pressTimer);
-            if (lockState !== 2) {
-                lockState = (lockState === 0) ? 1 : 0;
-                updateLockUI();
-            } else {
-                // Si estaba en azul y haces un click normal, vuelve a abierto
-                if (Date.now() % 100 > 0) { /* pequeño truco para el click post-longpress */ }
-            }
-        }
-
-        function updateLockUI() {
-            const btn = document.getElementById('lockBtn');
-            btn.className = '';
-            if (lockState === 0) { btn.innerText = "🔓"; btn.classList.add('lock-open'); log("Tempo libre."); }
-            if (lockState === 1) { btn.innerText = "🔒"; btn.classList.add('lock-total'); log("Bloqueo total."); }
-            if (lockState === 2) { btn.innerText = "⚡"; btn.classList.add('lock-flux'); }
-        }
-
-        function applyGenre(g) {
-            if (!genres[g]) return;
-            const data = genres[g];
-            
-            if (lockState === 0) { // ABIERTO: Cambia todo
-                updateBPM(data.bpm);
-                document.getElementById('bpmInput').value = data.bpm;
-                document.getElementById('swing').value = data.swing;
-            } else if (lockState === 2) { // MODO RAYO: Solo cambia Swing
-                document.getElementById('swing').value = data.swing;
-                log(`Swing adaptado a ${g}: ${data.swing}`);
-            }
-
-            clearMatrix();
-            for (let inst in data.patterns) {
-                data.patterns[inst].forEach(step => {
-                    matrix[inst][step] = true;
-                    document.getElementById(`step-${inst}-${step}`).classList.add('active');
-                });
-            }
-            log(`Ritmo ${g.toUpperCase()} cargado.`);
-        }
-
-        // --- MOTOR DE AUDIO ---
-        function log(msg) {
-            const c = document.getElementById('console');
-            c.innerHTML += `<br>> ${msg}`;
-            c.scrollTop = c.scrollHeight;
-        }
-
-        function updateBPM(v) { bpm = v; document.getElementById('bpmVal').innerText = v; }
-
-        function clearMatrix() {
-            instruments.forEach(inst => matrix[inst].fill(false));
-            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
-        }
-
-        function scheduler() {
-            if (!isPlaying) return;
-            while (nextStepTime < audioCtx.currentTime + 0.1) {
-                scheduleStep(stepIndex, nextStepTime);
-                nextStep();
-            }
-            timerId = setTimeout(scheduler, 25);
-        }
-
-        function scheduleStep(step, time) {
-            const sw = parseFloat(document.getElementById('swing').value);
-            const timeOffset = (step % 2 !== 0) ? sw * (60 / bpm / 4) : 0;
-            instruments.forEach(inst => {
-                if (matrix[inst][step] && audioBuffers[inst]) {
-                    const g = audioCtx.createGain();
-                    g.gain.value = (step % 4 === 0) ? 1.3 : 0.8;
-                    const s = audioCtx.createBufferSource();
-                    s.buffer = audioBuffers[inst];
-                    s.connect(g).connect(audioCtx.destination);
-                    s.start(time + timeOffset);
-                }
+        function initRack() {
+            const container = document.getElementById('rack-container');
+            banks.forEach(bank => {
+                const div = document.createElement('div');
+                div.className = 'bank-slot';
+                div.innerHTML = `<div>${bank.name}</div>`;
+                div.onclick = () => console.log(`Iniciando motor de carga para: ${bank.name}`);
+                container.appendChild(div);
             });
         }
 
-        function nextStep() {
-            nextStepTime += 0.25 * (60.0 / bpm);
-            stepIndex = (stepIndex + 1) % 16;
-        }
-
-        function togglePlay() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            isPlaying = !isPlaying;
-            document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-            if (isPlaying) { stepIndex = 0; nextStepTime = audioCtx.currentTime; scheduler(); }
-            else { clearTimeout(timerId); }
-        }
-
-        function applyMorph() {
-            instruments.forEach(inst => {
-                for(let i = 0; i < 16; i++) { if(Math.random() > 0.9) matrix[inst][i] = !matrix[inst][i]; }
-            });
-            document.querySelectorAll('.step').forEach(el => {
-                const p = el.id.split('-');
-                el.classList.toggle('active', matrix[p[1]][p[2]]);
-            });
-            log("Morph aplicado.");
-        }
-
-        async function loadSounds() {
-            log("Cargando ROM...");
-            for (const inst of instruments) {
-                try {
-                    const res = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
-                    audioBuffers[inst] = await audioCtx.decodeAudioData(await res.arrayBuffer());
-                } catch(e) {}
-            }
-            log("ROM LISTA.");
-        }
-        loadSounds();
+        // Inicializar al cargar
+        window.onload = initRack;
     </script>
 </body>
 </html>
