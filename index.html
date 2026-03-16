@@ -2,110 +2,58 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>TR-DeLOREAN V5.6 - Fusión Engine</title>
+    <title>TR-DeLOREAN v5.6 - Control Total</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 10px; }
-        .grid { display: grid; grid-template-columns: repeat(16, 20px); gap: 2px; margin: 15px; border: 1px solid #040; padding: 5px; }
-        .step { width: 20px; height: 20px; background: #222; cursor: pointer; border: 1px solid #0f0; transition: 0.1s; }
-        .step.active { background: #0f0; box-shadow: 0 0 5px #0f0; }
-        .step.playing { border-color: #fff; transform: scale(1.1); }
-        #controls { margin: 15px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 600px; }
-        .slider-group { display: flex; flex-direction: column; align-items: center; font-size: 10px; width: 85px; }
-        button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 8px; cursor: pointer; font-family: monospace; }
+        body { background: #000; color: #0f0; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(16, 22px); gap: 2px; margin: 10px; border: 1px solid #040; padding: 5px; }
+        .step { width: 22px; height: 22px; background: #111; cursor: pointer; border: 1px solid #0f0; }
+        .step.active { background: #0f0; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { background: #111; color: #0f0; border: 1px solid #0f0; padding: 10px; cursor: pointer; }
+        button.active { background: #0f0; color: #000; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1>TR-DeLOREAN v5.6 (Engine v18.3)</h1>
-    <div id="controls">
-        <button id="playBtn" onclick="togglePlay()">PLAY/STOP</button>
-        <button onclick="applyMorph()">MORPH 🧬</button>
-        <button onclick="clearMatrix()">CLEAR 🗑️</button>
-        <div class="slider-group">
-            <label>SWING</label>
-            <input type="range" id="swing" min="0" max="0.2" step="0.01" value="0">
-        </div>
-        <div class="slider-group">
-            <label>HUMAN</label>
-            <input type="range" id="humanize" min="0" max="0.02" step="0.001" value="0.005">
-        </div>
+    <h1>TR-DeLOREAN v5.6</h1>
+    <div class="controls">
+        <button id="btn-play" onclick="togglePlay()">PLAY</button>
+        <button id="btn-shuffle" onclick="toggleFeature('shuffle')">SHUFFLE</button>
+        <button id="btn-velocity" onclick="toggleFeature('velocity')">DYN-VEL</button>
+        <button id="btn-swing" onclick="toggleFeature('swing')">SWING</button>
+        <button id="btn-humanize" onclick="toggleFeature('humanize')">HUMANIZE</button>
     </div>
 
     <div id="grid" class="grid"></div>
-    <div id="console">> Motor listo. Cargando sonidos...</div>
 
 <script>
-    const instruments = ['Kick', 'Snare', 'ClHat', 'OpHat', 'Crash', 'LTom', 'MTom', 'HTom', 'Clap', 'Rim', 'Cowbell', 'Ride', 'Cabasa', 'Tamb', 'Inst15', 'Inst16'];
-    let matrix = {}, audioBuffers = {}, isPlaying = false, stepIndex = 0, bpm = 120, nextStepTime = 0.0, timerId = null;
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Estado del Sistema
+    const features = { shuffle: false, velocity: false, swing: false, humanize: false };
+    let isPlaying = false;
 
-    // Inicializar Matriz
-    instruments.forEach(inst => { matrix[inst] = new Array(16).fill(false); });
-
-    // Crear Grid
-    const gridEl = document.getElementById('grid');
-    instruments.forEach(inst => {
-        for(let i=0; i<16; i++) {
-            const s = document.createElement('div');
-            s.className = 'step';
-            s.id = `step-${inst}-${i}`;
-            s.onclick = () => {
-                matrix[inst][i] = !matrix[inst][i];
-                s.classList.toggle('active');
-            };
-            gridEl.appendChild(s);
-        }
-    });
-
-    function log(m) { document.getElementById('console').innerHTML = `> ${m}`; }
-
-    // Motor de Audio original
-    function scheduleStep(step, time) {
-        const sw = parseFloat(document.getElementById('swing').value);
-        const hum = parseFloat(document.getElementById('humanize').value);
-        const timeOffset = (step % 2 !== 0) ? sw * (60 / bpm / 4) : 0;
-        const jitter = (Math.random() - 0.5) * hum;
-
-        instruments.forEach(inst => {
-            if (matrix[inst][step] && audioBuffers[inst]) {
-                const g = audioCtx.createGain();
-                g.gain.value = (step % 4 === 0) ? 1.3 : 0.8;
-                const s = audioCtx.createBufferSource();
-                s.buffer = audioBuffers[inst];
-                s.connect(g).connect(audioCtx.destination);
-                s.start(time + timeOffset + jitter);
-            }
-        });
-    }
-
-    // Integración Engine v18.3 (Control de Scheduler)
-    function scheduler() {
-        while (nextStepTime < audioCtx.currentTime + 0.1) {
-            scheduleStep(stepIndex, nextStepTime);
-            stepIndex = (stepIndex + 1) % 16;
-            nextStepTime += (60 / bpm) / 4;
-        }
-        timerId = setTimeout(scheduler, 25);
+    // Conexión de Botones
+    function toggleFeature(featureName) {
+        features[featureName] = !features[featureName];
+        const btn = document.getElementById(`btn-${featureName}`);
+        btn.classList.toggle('active', features[featureName]);
+        console.log(`Función ${featureName} activada: ${features[featureName]}`);
     }
 
     function togglePlay() {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
         isPlaying = !isPlaying;
-        document.getElementById('playBtn').innerText = isPlaying ? "STOP" : "PLAY";
-        if (isPlaying) { stepIndex = 0; nextStepTime = audioCtx.currentTime; scheduler(); }
-        else { clearTimeout(timerId); }
+        document.getElementById('btn-play').classList.toggle('active', isPlaying);
+        console.log(`Estado Play: ${isPlaying}`);
+        // Aquí entraría la lógica del scheduler
     }
 
-    async function loadSounds() {
-        for (const inst of instruments) {
-            try {
-                const res = await fetch(`https://raw.githubusercontent.com/zx1mldl/TR-DeLorean-Drums-/main/${inst}.wav`);
-                audioBuffers[inst] = await audioCtx.decodeAudioData(await res.arrayBuffer());
-            } catch(e) {}
-        }
-        log("ROM CARGADA. TR-DELOREAN V5.6 READY.");
+    // Inicializar Rejilla
+    const grid = document.getElementById('grid');
+    for(let i = 0; i < 16; i++) {
+        const s = document.createElement('div');
+        s.className = 'step';
+        s.onclick = () => s.classList.toggle('active');
+        grid.appendChild(s);
     }
-    loadSounds();
 </script>
 </body>
 </html>
