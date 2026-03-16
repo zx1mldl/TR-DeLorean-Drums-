@@ -2,33 +2,32 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Secuenciador v5.3 + Engine v18.3</title>
+    <title>Secuenciador v5.3 | Engine v18.3</title>
     <style>
         body { font-family: 'Verdana', sans-serif; background: #000; color: #fff; padding: 20px; }
         .container { max-width: 800px; margin: auto; border: 1px solid #333; padding: 20px; background: #121212; }
         h1 { color: #ff9900; font-size: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         
-        /* Rejilla del Step Sequencer (Visual v5.3) */
         .sequencer-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin: 20px 0; }
         .step { height: 40px; background: #222; border: 1px solid #444; cursor: pointer; }
         .step.active { background: #ff9900; }
         
-        .controls { display: flex; gap: 10px; }
-        .mode-btn { background: #222; border: 1px solid #444; color: #fff; padding: 10px; cursor: pointer; }
+        .controls { display: flex; gap: 10px; margin-top: 15px; }
+        .mode-btn { background: #222; border: 1px solid #444; color: #fff; padding: 10px 15px; cursor: pointer; font-size: 12px; }
         .mode-btn.on { background: #ff9900; color: #000; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Step Sequencer v5.3 (Engine v18.3)</h1>
+    <h1>Step Sequencer v5.3 (Integrado Engine v18.3)</h1>
     
     <div class="sequencer-grid" id="grid"></div>
 
     <div class="controls">
-        <button class="mode-btn" id="btnShuffle" onclick="engine.toggleModo('modoShuffle')">Shuffle</button>
-        <button class="mode-btn" id="btnVelocidad" onclick="engine.toggleModo('modoVelocidad')">Velocidad</button>
         <button class="mode-btn" id="btnSwing" onclick="engine.toggleModo('modoSwing')">Swing</button>
+        <button class="mode-btn" id="btnHumanizar" onclick="engine.toggleModo('modoHumanizar')">Humanizar</button>
+        <button class="mode-btn" onclick="engine.resetear()">Reset</button>
     </div>
 </div>
 
@@ -36,11 +35,11 @@
     class PatronesEngine {
         constructor() {
             this.config = {
-                modoShuffle: { activo: false, id: "btnShuffle" },
-                modoVelocidad: { activo: false, id: "btnVelocidad" },
-                modoSwing: { activo: false, id: "btnSwing" }
+                modoSwing: { activo: false, id: "btnSwing" },
+                modoHumanizar: { activo: false, id: "btnHumanizar" }
             };
 
+            // Librería con los datos reales extraídos
             this.library = {
                 "Beat 1": { bpm: 97, notes: [{"time":0,"note":"D2"},{"time":0.309,"note":"G2"},{"time":0.618,"note":"F2"},{"time":0.927,"note":"G2"}] },
                 "Beat 2": { bpm: 101, notes: [{"time":0,"note":"D2"},{"time":0.297,"note":"F#2"},{"time":0.594,"note":"F2"},{"time":0.891,"note":"D2"}] },
@@ -54,6 +53,7 @@
 
         crearGrid() {
             const grid = document.getElementById('grid');
+            grid.innerHTML = '';
             for (let i = 0; i < 16; i++) {
                 const step = document.createElement('div');
                 step.className = 'step';
@@ -66,6 +66,12 @@
             const modo = this.config[nombreModo];
             modo.activo = !modo.activo;
             document.getElementById(modo.id).classList.toggle('on', modo.activo);
+            console.log(`${nombreModo} set to: ${modo.activo}`);
+        }
+
+        resetear() {
+            this.crearGrid();
+            console.log("Grid reseteado");
         }
     }
 
