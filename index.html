@@ -8,24 +8,28 @@
         h1 { margin-top: 30px; text-transform: uppercase; letter-spacing: 5px; }
         
         #rack-container { display: grid; grid-template-columns: repeat(4, 140px); gap: 20px; padding: 40px; border: 1px solid #333; margin: 20px; background: #1a1a1a; }
-        
-        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; 
-                     display: flex; align-items: center; justify-content: center; cursor: pointer; 
-                     transition: 0.3s; text-align: center; }
-        
+        .bank-slot { width: 140px; height: 140px; background: #222; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s; }
         .bank-slot:hover { border-color: #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.3); }
-        
-        #status-panel { margin-top: 20px; padding: 15px; border: 1px solid #00ffcc; border-radius: 5px; width: 80%; text-align: center; }
+
+        /* NUEVO PANEL DE CONTROL */
+        #control-room { background: #000; padding: 20px; border: 2px solid #00ffcc; border-radius: 10px; width: 600px; display: flex; justify-content: space-around; }
+        button { background: #333; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px 20px; cursor: pointer; font-family: inherit; }
+        button:hover { background: #00ffcc; color: #000; }
     </style>
 </head>
 <body>
 
     <h1>TR-DeLorean v6.0</h1>
     <div id="rack-container"></div>
-    <div id="status-panel">Sistema: Listo para carga de ADN rítmico</div>
+
+    <div id="control-room">
+        <button onclick="playMachine()">PLAY</button>
+        <button onclick="stopMachine()">STOP</button>
+        <div id="bpm-display">BPM: 120</div>
+    </div>
+    <div id="status-panel" style="margin-top:20px;">Sistema: Listo para carga de ADN rítmico</div>
 
     <script>
-        // CONFIGURACIÓN DE BANCOS
         const banks = [
             { name: "Bardet 260", id: "bardet" },
             { name: "Tokyo Test", id: "tokyo" },
@@ -33,7 +37,6 @@
             { name: "CR-78 Vintage", id: "cr78" }
         ];
 
-        // 1. INICIALIZADOR DEL RACK
         function initRack() {
             const container = document.getElementById('rack-container');
             banks.forEach(bank => {
@@ -45,28 +48,13 @@
             });
         }
 
-        // 2. MOTOR DE PARSER MIDI (FASE B)
-        async function loadBank(bank) {
-            const status = document.getElementById('status-panel');
-            status.innerText = `Cargando ADN rítmico: ${bank.name}...`;
-            
-            console.log(`Iniciando secuencia para: ${bank.id}`);
-            
-            // Simulación de lectura de bytes (Parser MIDI)
-            try {
-                // Aquí llamaremos a tu archivo MIDI en el futuro
-                await simulateMidiParse(bank.id);
-                status.innerText = `ÉXITO: Banco ${bank.name} cargado correctamente.`;
-            } catch (err) {
-                status.innerText = `ERROR: Fallo en la lectura del archivo.`;
-            }
+        function playMachine() { console.log("Iniciando secuencia..."); }
+        function stopMachine() { console.log("Deteniendo motor..."); }
+
+        function loadBank(bank) {
+            document.getElementById('status-panel').innerText = `Banco activo: ${bank.name}`;
         }
 
-        function simulateMidiParse(id) {
-            return new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        // INICIAR AL CARGAR
         window.onload = initRack;
     </script>
 </body>
