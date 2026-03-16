@@ -2,79 +2,68 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Secuenciador v18.3 - Integración v5.3</title>
+    <title>Secuenciador - Modelo v5.3 Potenciado</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 30px; }
-        .engine-box { background: #2d2d2d; padding: 20px; border-radius: 12px; border-left: 5px solid #00c853; }
-        .controls { margin-top: 20px; display: flex; gap: 10px; }
-        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; background: #444; color: white; transition: 0.3s; }
-        button:hover { background: #666; }
-        button.active { background: #00c853; }
-        #status { margin-top: 15px; font-style: italic; color: #888; }
+        body { font-family: 'Verdana', sans-serif; background: #000; color: #fff; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; border: 1px solid #333; padding: 20px; background: #121212; }
+        h1 { color: #ff9900; font-size: 24px; }
+        .mode-btn { background: #222; border: 1px solid #444; color: #fff; padding: 10px; margin: 5px; cursor: pointer; }
+        .mode-btn.active { background: #ff9900; color: #000; font-weight: bold; }
+        #log { margin-top: 20px; font-size: 12px; color: #888; border-top: 1px solid #333; padding-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="engine-box">
-        <h1>PatronesEngine v18.3</h1>
-        <p>Motor funcional con integración de datos reales (Beats 1-5).</p>
+<div class="container">
+    <h1>Secuenciador v5.3 (Engine v18.2)</h1>
+    <div id="status">Sistema cargado. 5 Beats disponibles.</div>
 
-        <div class="controls">
-            <button id="btnShuffle" onclick="engine.toggleModo('modoShuffle')">Shuffle Groove</button>
-            <button id="btnVelocidad" onclick="engine.toggleModo('modoVelocidad')">Velocidad Dinámica</button>
-            <button id="btnSwing" onclick="engine.toggleModo('modoSwing')">Swing Aleatorio</button>
-        </div>
-        <div id="status">Motor listo. Seleccione un beat para procesar.</div>
+    <div id="panel">
+        <button class="mode-btn" id="btnShuffle" onclick="engine.toggleModo('modoShuffle')">Shuffle</button>
+        <button class="mode-btn" id="btnVelocidad" onclick="engine.toggleModo('modoVelocidad')">Velocidad</button>
+        <button class="mode-btn" id="btnSwing" onclick="engine.toggleModo('modoSwing')">Swing</button>
     </div>
 
-    <script>
-        class PatronesEngine {
-            constructor() {
-                this.config = {
-                    modoShuffle: { activo: false, nombre: "Shuffle Groove", id: "btnShuffle" },
-                    modoVelocidad: { activo: false, nombre: "Velocidad Dinámica", id: "btnVelocidad" },
-                    modoSwing: { activo: false, nombre: "Swing Aleatorio", id: "btnSwing" }
-                };
+    <div id="log">Logs de sistema:</div>
+</div>
 
-                // Biblioteca de Patrones con datos extraídos de archivos
-                this.library = {
-                    "Beat 1": { bpm: 97, notes: [{"time":0,"note":"D2"},{"time":0.309,"note":"G2"},{"time":0.618,"note":"F2"},{"time":0.927,"note":"G2"}] },
-                    "Beat 2": { bpm: 101, notes: [{"time":0,"note":"D2"},{"time":0.297,"note":"F#2"},{"time":0.594,"note":"F2"},{"time":0.891,"note":"D2"}] },
-                    "Beat 3": { bpm: 108, notes: [{"time":0,"note":"D2"},{"time":0.277,"note":"F#2"},{"time":0.416,"note":"F#2"},{"time":0.555,"note":"F2"}] },
-                    "Beat 4": { bpm: 98, notes: [{"time":0,"note":"D2"},{"time":0.153,"note":"F#2"},{"time":0.459,"note":"E2"},{"time":0.765,"note":"F#2"}] },
-                    "Beat 5": { bpm: 98, notes: [{"time":0,"note":"D2"},{"time":0.102,"note":"F#2"},{"time":0.408,"note":"E2"},{"time":0.714,"note":"F#2"}] }
-                };
-            }
+<script>
+    class PatronesEngine {
+        constructor() {
+            this.config = {
+                modoShuffle: { activo: false, id: "btnShuffle" },
+                modoVelocidad: { activo: false, id: "btnVelocidad" },
+                modoSwing: { activo: false, id: "btnSwing" }
+            };
 
-            toggleModo(nombreModo) {
-                const modo = this.config[nombreModo];
-                if (modo) {
-                    modo.activo = !modo.activo;
-                    document.getElementById(modo.id).classList.toggle('active', modo.activo);
-                    document.getElementById('status').innerText = `${modo.nombre} ahora está ${modo.activo ? 'ON' : 'OFF'}`;
-                }
-            }
-
-            procesarRitmo(patronKey) {
-                const source = this.library[patronKey];
-                if (!source) return null;
-
-                // Clon profundo para preservar la integridad de la fuente
-                let result = JSON.parse(JSON.stringify(source));
-
-                if (this.config.modoShuffle.activo) result = this._aplicarShuffle(result);
-                if (this.config.modoVelocidad.activo) result = this._aplicarVelocidad(result);
-                if (this.config.modoSwing.activo) result = this._aplicarSwing(result);
-
-                return result;
-            }
-
-            _aplicarShuffle(p) { console.log("Shuffle procesado"); return p; }
-            _aplicarVelocidad(p) { console.log("Velocidad procesada"); return p; }
-            _aplicarSwing(p) { console.log("Swing procesado"); return p; }
+            // Integración de tus datos reales
+            this.library = {
+                "Beat 1": { bpm: 97, notes: [{"time":0,"note":"D2"},{"time":0.309,"note":"G2"},{"time":0.618,"note":"F2"},{"time":0.927,"note":"G2"}] },
+                "Beat 2": { bpm: 101, notes: [{"time":0,"note":"D2"},{"time":0.297,"note":"F#2"},{"time":0.594,"note":"F2"},{"time":0.891,"note":"D2"}] },
+                "Beat 3": { bpm: 108, notes: [{"time":0,"note":"D2"},{"time":0.277,"note":"F#2"},{"time":0.416,"note":"F#2"},{"time":0.555,"note":"F2"}] },
+                "Beat 4": { bpm: 98, notes: [{"time":0,"note":"D2"},{"time":0.153,"note":"F#2"},{"time":0.459,"note":"E2"},{"time":0.765,"note":"F#2"}] },
+                "Beat 5": { bpm: 98, notes: [{"time":0,"note":"D2"},{"time":0.102,"note":"F#2"},{"time":0.408,"note":"E2"},{"time":0.714,"note":"F#2"}] }
+            };
         }
 
-        const engine = new PatronesEngine();
-    </script>
+        toggleModo(nombreModo) {
+            const modo = this.config[nombreModo];
+            modo.activo = !modo.activo;
+            document.getElementById(modo.id).classList.toggle('active', modo.activo);
+            this._log(`${nombreModo} ahora está ${modo.activo ? 'ON' : 'OFF'}`);
+        }
+
+        procesarRitmo(key) {
+            let p = JSON.parse(JSON.stringify(this.library[key]));
+            if (this.config.modoShuffle.activo) p = this._shuffle(p);
+            return p;
+        }
+
+        _shuffle(p) { return p; }
+        _log(msg) { document.getElementById('log').innerHTML += `<br>> ${msg}`; }
+    }
+
+    const engine = new PatronesEngine();
+</script>
 </body>
 </html>
